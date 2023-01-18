@@ -45,7 +45,7 @@ func main() {
 	}
 
 	// Events owned by one node
-	var Events [10]inputs.Event
+	events := make(inputs.Events)
 	// input events file
 	f2, err := os.Open("./inputs/events.txt")
 	if err != nil {
@@ -70,17 +70,18 @@ func main() {
 		if i == 0 {
 			n = line
 		} else {
-			Events[i].SetNode(n)
+			var event inputs.Event
 			StrEvent := strings.Split(line, ";")
-			Events[i].SetId(StrEvent[0])
-			Events[i].SetEpoch(common.StringToUint32(StrEvent[1]))
-			Events[i].SetSeq(common.StringToUint32(StrEvent[2]))
-			Events[i].SetFrame(common.StringToUint32(StrEvent[3]))
-			Events[i].SetCreator(common.StringToUint32(StrEvent[4]))
-			Events[i].SetParents(strings.Split(StrEvent[5], ","))
+			event.SetNode(n)
+			event.SetEpoch(common.StringToUint32(StrEvent[1]))
+			event.SetSeq(common.StringToUint32(StrEvent[2]))
+			event.SetFrame(common.StringToUint32(StrEvent[3]))
+			event.SetCreator(common.StringToUint32(StrEvent[4]))
+			event.SetParents(strings.Split(StrEvent[5], ","))
+			events[StrEvent[0]] = event
 		}
 		i++
 	}
-	//fmt.Println(node)
-	fmt.Println(Events)
+	fmt.Println(events)
+
 }
