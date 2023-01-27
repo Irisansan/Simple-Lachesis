@@ -2,10 +2,11 @@ package lachesis
 
 import (
 	"Lachesis/inputs"
+	"Lachesis/pos"
 	"fmt"
 )
 
-func ForklessCause(eventaId string, eventbId string, events inputs.Events, validators Validators) bool {
+func ForklessCause(eventaId inputs.EventId, eventbId inputs.EventId, events inputs.Events, validators pos.Validators) bool {
 	a := HighestEventsObservedBy(eventaId, events)    // map[branch]seq+IsFork
 	b := LowestEventsWhichDoObserve(eventbId, events) // map[branch]seq
 	eventB := events[eventbId]
@@ -15,31 +16,32 @@ func ForklessCause(eventaId string, eventbId string, events inputs.Events, valid
 		fmt.Println("There is a fork in branch:", branchB)
 		return false // A observe a fork from B's branch
 	}
-	yes := uint32(0)
-	total := TotalWeight(validators)
-	for branch, _ := range validators {
+	yes := validators.NewCounter()
+	total := validators.TotalWeight()
+	for _, branch := range validators.Branch() {
 		// validator observed B (and no fork) in the subgraph of A
 		vector := a[branch]
 		if b[branch] <= vector.Seq() && b[branch] != 0 && !vector.IsFork() {
-			yes += validators[branch].weight
+			yes.Count(branch)
 		} else if vector.IsFork() {
 			fmt.Println("There is a fork in branch:", branch)
-			total -= validators[branch].weight
+			validator := validators.Validator()
+			total -= validator[branch]
 		}
 	}
-	quorum := total / 3 * 2
-	return yes > quorum
+	quorum := total/3*2 + 1
+	return yes.SumWeight() > quorum
 }
 
-func HighestEventsObservedBy(eID string, events inputs.Events) map[string]inputs.Vector {
-	vector := make(map[string]inputs.Vector)
+func HighestEventsObservedBy(eID inputs.EventId, events inputs.Events) map[inputs.ValidatorId]inputs.Vector {
+	vector := make(map[inputs.ValidatorId]inputs.Vector)
 	event := events[eID]
 	vector = event.HighestEventsVector()
 	return vector
 }
 
-func LowestEventsWhichDoObserve(eID string, events inputs.Events) map[string]uint32 {
-	b := make(map[string]uint32)
+func LowestEventsWhichDoObserve(eID inputs.EventId, events inputs.Events) map[inputs.ValidatorId]inputs.Seq {
+	b := make(map[inputs.ValidatorId]inputs.Seq)
 	for _, v := range events {
 		var p = v.Parents()
 		for _, j := range p {

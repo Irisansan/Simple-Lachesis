@@ -1,56 +1,80 @@
 package inputs
 
+// Vector is for mapping from validatorId to highest observed event id
+type Vector struct {
+	eventId EventId
+	seq     Seq
+	isFork  bool
+}
+
+func (v *Vector) EventId() EventId { return v.eventId }
+func (v *Vector) Seq() Seq         { return v.seq }
+func (v *Vector) IsFork() bool     { return v.isFork }
+
+func (v *Vector) SetEventId(s EventId) { v.eventId = s }
+func (v *Vector) SetSeq(s Seq)         { v.seq = s }
+func (v *Vector) SetIsFork(f bool)     { v.isFork = f }
+
 // Events map[EventID]BaseEvent
-type Events map[string]Event
+type Events map[EventId]Event
 
 type Event struct {
 	// epoch number (see epoch). Not less than 1.
-	epoch uint32
+	epoch Epoch
 	// seq number. Equal to self-parent’s seq + 1, if no self-parent, then 1.
-	seq uint32
+	seq Seq
 	// frame number (see consensus). Not less than 1.
-	frame uint32
+	frame Frame
 	// creator ID of validator which created event.
-	creator string
+	creator ValidatorId
 	// node owner of the event
-	node string
+	node NodeId
 	// hash of the event
-	id string
+	id EventId
 	// list of parents (graph edges). May be empty. If Seq > 1, then ﬁrst element is self-parent.
-	parents []string
+	parents Parents
 
 	// mapping from validatorId to highest observed event id
-	highestEventsVector map[string]Vector
+	highestEventsVector map[ValidatorId]Vector
+	// flag for root
+	isRoot bool
 }
 
-func (e *Event) Epoch() uint32                          { return e.epoch }
-func (e *Event) Seq() uint32                            { return e.seq }
-func (e *Event) Frame() uint32                          { return e.frame }
-func (e *Event) Creator() string                        { return e.creator }
-func (e *Event) Node() string                           { return e.node }
-func (e *Event) Id() string                             { return e.id }
-func (e *Event) Parents() []string                      { return e.parents }
-func (e *Event) HighestEventsVector() map[string]Vector { return e.highestEventsVector }
+func (e *Event) Epoch() Epoch                                { return e.epoch }
+func (e *Event) Seq() Seq                                    { return e.seq }
+func (e *Event) Frame() Frame                                { return e.frame }
+func (e *Event) Creator() ValidatorId                        { return e.creator }
+func (e *Event) Node() NodeId                                { return e.node }
+func (e *Event) Id() EventId                                 { return e.id }
+func (e *Event) Parents() Parents                            { return e.parents }
+func (e *Event) IsRoot() bool                                { return e.isRoot }
+func (e *Event) HighestEventsVector() map[ValidatorId]Vector { return e.highestEventsVector }
 
-func (e *Event) SetEpoch(ep uint32)    { e.epoch = ep }
-func (e *Event) SetSeq(s uint32)       { e.seq = s }
-func (e *Event) SetFrame(f uint32)     { e.frame = f }
-func (e *Event) SetCreator(c string)   { e.creator = c }
-func (e *Event) SetNode(n string)      { e.node = n }
-func (e *Event) SetId(i string)        { e.id = i }
-func (e *Event) SetParents(p []string) { e.parents = p }
+func (e *Event) SetEpoch(ep Epoch)        { e.epoch = ep }
+func (e *Event) SetSeq(s Seq)             { e.seq = s }
+func (e *Event) SetFrame(f Frame)         { e.frame = f }
+func (e *Event) SetCreator(c ValidatorId) { e.creator = c }
+func (e *Event) SetNode(n NodeId)         { e.node = n }
+func (e *Event) SetId(i EventId)          { e.id = i }
+func (e *Event) SetParents(p Parents)     { e.parents = p }
+
+// SetEvent when adding a new event into dag
+func (e *Event) SetEvent(events Events) {
+	e.SetHighestEventsVector(events)
+}
 
 // SelfParent returns event's self-parent, if any
-func (e *Event) SelfParent() *string {
+func (e *Event) SelfParent() *EventId {
 	if e.seq <= 1 || len(e.parents) == 0 {
 		return nil
 	}
 	return &e.parents[0]
 }
 
+// SetHighestEventsVector finds the highest events and detects whether there is a fork
 func (e *Event) SetHighestEventsVector(events Events) {
 	var vector Vector
-	e.highestEventsVector = make(map[string]Vector)
+	e.highestEventsVector = make(map[ValidatorId]Vector)
 	// find the highest events
 	// root
 	if e.seq == 1 || events == nil {
@@ -113,4 +137,15 @@ func (e *Event) SetHighestEventsVector(events Events) {
 			}
 		}
 	}
+}
+
+func (e *Event) SetRoot() {
+	// The first event of a validator is a root.
+	if e.Seq() == 1 {
+		e.isRoot = true
+	} else {
+		// An event, which is forkless caused by the previous frame roots quorum is a root.
+
+	}
+
 }

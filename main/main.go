@@ -4,6 +4,7 @@ import (
 	"Lachesis/common"
 	"Lachesis/inputs"
 	"Lachesis/lachesis"
+	"Lachesis/pos"
 	"bufio"
 	"fmt"
 	"io"
@@ -12,7 +13,7 @@ import (
 )
 
 // About the input file network: Node Sequence; []Node connections; []Events owned by the node
-// About the input file events: the first line is the node; Event ID; Epoch; Sequence; Frame; Creator; []Parents
+// About the input file events: the first line is the node; Event ID; Epoch; Sequence; Creator; []Parents
 
 func main() {
 	//Nodes in the network
@@ -73,40 +74,28 @@ func main() {
 		} else {
 			var event inputs.Event
 			StrEvent := strings.Split(line, ";")
-			event.SetNode(n)
-			event.SetId(StrEvent[0])
-			event.SetEpoch(common.StringToUint32(StrEvent[1]))
-			event.SetSeq(common.StringToUint32(StrEvent[2]))
-			event.SetFrame(common.StringToUint32(StrEvent[3]))
-			event.SetCreator(StrEvent[4])
-			event.SetParents(strings.Split(StrEvent[5], ","))
-			event.SetHighestEventsVector(events)
-			events[StrEvent[0]] = event
+			event.SetNode(inputs.NodeId(n))
+			event.SetId(inputs.EventId(StrEvent[0]))
+			event.SetEpoch(inputs.Epoch(common.StringToUint32(StrEvent[1])))
+			event.SetSeq(inputs.Seq(common.StringToUint32(StrEvent[2])))
+			event.SetCreator(inputs.ValidatorId(StrEvent[3]))
+			event.SetParents(common.StringsToParents(strings.Split(StrEvent[4], ",")))
+			event.SetEvent(events)
+			events[inputs.EventId(StrEvent[0])] = event
 			fmt.Println(event)
 		}
 		i++
 	}
 	//fmt.Println(events)
 
-	validators := make(lachesis.Validators)
-	var v1 lachesis.Validator
-	v1.SetWeight(1)
-	validators["a"] = v1
+	var validators pos.Validators
+	validators.NewValidator("a", 1)
+	validators.NewValidator("b", 2)
+	validators.NewValidator("c", 2)
+	validators.NewValidator("d", 1)
 
-	var v2 lachesis.Validator
-	v2.SetWeight(2)
-	validators["b"] = v2
-
-	var v3 lachesis.Validator
-	v3.SetWeight(2)
-	validators["c"] = v3
-
-	var v4 lachesis.Validator
-	v4.SetWeight(1)
-	validators["d"] = v4
-
-	var A string = "EventA04"
-	var B string = "EventA01"
+	var A inputs.EventId = "EventA04"
+	var B inputs.EventId = "EventA01"
 	if lachesis.ForklessCause(A, B, events, validators) {
 		fmt.Println(A, "is forkless caused by", B)
 	} else {
