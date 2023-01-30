@@ -1,4 +1,4 @@
-package inputs
+package dag
 
 type Network map[string]Node
 

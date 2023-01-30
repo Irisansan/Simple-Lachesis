@@ -2,7 +2,8 @@ package main
 
 import (
 	"Lachesis/common"
-	"Lachesis/inputs"
+	"Lachesis/dag"
+	"Lachesis/idx"
 	"Lachesis/lachesis"
 	"Lachesis/pos"
 	"bufio"
@@ -16,8 +17,19 @@ import (
 // About the input file events: the first line is the node; Event ID; Epoch; Sequence; Creator; []Parents
 
 func main() {
-	//Nodes in the network
-	node := make(inputs.Network)
+	// Set the validators
+	var validators pos.Validators
+	validators.NewValidator("a", 1)
+	validators.NewValidator("b", 2)
+	validators.NewValidator("c", 2)
+	validators.NewValidator("d", 1)
+
+	// Storage
+	var store lachesis.Store
+	store.StoreValidators(validators)
+
+	// Nodes in the network
+	node := make(dag.Network)
 	// input network file
 	f1, err := os.Open("./inputs/network.txt")
 	if err != nil {
@@ -40,16 +52,16 @@ func main() {
 		strNode := strings.Split(line, ";")
 		strConn := strings.Split(strNode[1], ",")
 		strHash := strings.Split(strNode[2], ",")
-		var nodeProperty inputs.Node
+		var nodeProperty dag.Node
 		nodeProperty.SetConnections(strConn)
 		nodeProperty.SetDag(strHash)
 		node[strNode[0]] = nodeProperty
 	}
 
 	// Events owned by one node
-	events := make(inputs.Events)
+	events := make(dag.Events)
 	// input events file
-	f2, err := os.Open("./inputs/IsFork_test.txt")
+	f2, err := os.Open("./inputs/forklessCause_test.txt")
 	if err != nil {
 		fmt.Println("Events file input error!", err)
 		panic(err)
@@ -72,34 +84,32 @@ func main() {
 		if i == 0 {
 			n = line
 		} else {
-			var event inputs.Event
+			var event dag.Event
 			StrEvent := strings.Split(line, ";")
-			event.SetNode(inputs.NodeId(n))
-			event.SetId(inputs.EventId(StrEvent[0]))
-			event.SetEpoch(inputs.Epoch(common.StringToUint32(StrEvent[1])))
-			event.SetSeq(inputs.Seq(common.StringToUint32(StrEvent[2])))
-			event.SetCreator(inputs.ValidatorId(StrEvent[3]))
+			event.SetNode(idx.NodeId(n))
+			event.SetId(idx.EventId(StrEvent[0]))
+			event.SetEpoch(idx.Epoch(common.StringToUint32(StrEvent[1])))
+			event.SetSeq(idx.Seq(common.StringToUint32(StrEvent[2])))
+			event.SetCreator(idx.ValidatorId(StrEvent[3]))
 			event.SetParents(common.StringsToParents(strings.Split(StrEvent[4], ",")))
 			event.SetEvent(events)
-			events[inputs.EventId(StrEvent[0])] = event
+			event.SetFrame(store.CalcFrameIdx(event))
+			events[idx.EventId(StrEvent[0])] = event
+			store.StoreEvents(events)
 			fmt.Println(event)
 		}
 		i++
 	}
 	//fmt.Println(events)
 
-	var validators pos.Validators
-	validators.NewValidator("a", 1)
-	validators.NewValidator("b", 2)
-	validators.NewValidator("c", 2)
-	validators.NewValidator("d", 1)
-
-	var A inputs.EventId = "EventA04"
-	var B inputs.EventId = "EventA01"
-	if lachesis.ForklessCause(A, B, events, validators) {
+	var A idx.EventId = "EventA04"
+	var B idx.EventId = "EventB01"
+	if lachesis.ForklessCause(events[A], events[B], store) {
 		fmt.Println(A, "is forkless caused by", B)
 	} else {
 		fmt.Println(A, "is not forkless caused by", B)
 	}
+
+	//fmt.Println(store.Frames())
 
 }

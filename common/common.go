@@ -1,7 +1,7 @@
 package common
 
 import (
-	"Lachesis/inputs"
+	"Lachesis/idx"
 	"fmt"
 	"strconv"
 )
@@ -16,10 +16,10 @@ func StringToUint32(s string) uint32 {
 	return u
 }
 
-func StringsToParents(s []string) inputs.Parents {
-	var p inputs.Parents
+func StringsToParents(s []string) idx.Parents {
+	var p idx.Parents
 	for _, v := range s {
-		p = append(p, inputs.EventId(v))
+		p = append(p, idx.EventId(v))
 	}
 	return p
 

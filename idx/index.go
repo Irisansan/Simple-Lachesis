@@ -1,4 +1,4 @@
-package inputs
+package idx
 
 type (
 	// Epoch numeration.
