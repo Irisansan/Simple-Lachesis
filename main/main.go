@@ -20,8 +20,8 @@ func main() {
 	// Set the validators
 	var validators pos.Validators
 	validators.NewValidator("a", 1)
-	validators.NewValidator("b", 2)
-	validators.NewValidator("c", 2)
+	validators.NewValidator("b", 1)
+	validators.NewValidator("c", 1)
 	validators.NewValidator("d", 1)
 
 	// Storage
@@ -92,15 +92,17 @@ func main() {
 			event.SetSeq(idx.Seq(common.StringToUint32(StrEvent[2])))
 			event.SetCreator(idx.ValidatorId(StrEvent[3]))
 			event.SetParents(common.StringsToParents(strings.Split(StrEvent[4], ",")))
-			event.SetEvent(events)
+			event.SetEvent(&events)
 			event.SetFrame(store.CalcFrameIdx(event))
 			events[idx.EventId(StrEvent[0])] = event
 			store.StoreEvents(events)
-			fmt.Println(event)
 		}
 		i++
 	}
-	//fmt.Println(events)
+
+	for id, _ := range events {
+		fmt.Println(events[id])
+	}
 
 	var A idx.EventId = "EventA04"
 	var B idx.EventId = "EventB01"
@@ -110,6 +112,11 @@ func main() {
 		fmt.Println(A, "is not forkless caused by", B)
 	}
 
-	//fmt.Println(store.Frames())
+	//for k, v := range store.Frames() {
+	//	fmt.Println("------------------------Frame", k)
+	//	for _, j := range v {
+	//		fmt.Print(j.Id())
+	//	}
+	//}
 
 }

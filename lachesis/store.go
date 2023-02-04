@@ -9,6 +9,7 @@ import (
 type Roots []dag.Event
 type Frames []Roots
 
+// Store all events, validators and the frames including roots
 type Store struct {
 	events     dag.Events
 	validators pos.Validators
