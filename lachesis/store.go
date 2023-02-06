@@ -14,6 +14,7 @@ type Store struct {
 	events     dag.Events
 	validators pos.Validators
 	frames     Frames
+	Atropos
 }
 
 func (s *Store) StoreEvents(events dag.Events)     { s.events = events }

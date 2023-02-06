@@ -48,6 +48,7 @@ type Event struct {
 	// list of parents (graph edges). May be empty. If Seq > 1, then ﬁrst element is self-parent.
 	parents idx.Parents
 
+	// cache
 	// mapping from validatorId to highest observed event id
 	highestEventsVector map[idx.ValidatorId]BeforeVector
 	// mapping from validatorId to lowest event id

@@ -6,7 +6,7 @@ type (
 	// Seq number.
 	Seq uint32
 	// Frame number (see consensus).
-	Frame uint32
+	Frame int32
 	// ValidatorId of validator which created event.
 	ValidatorId string
 	// NodeId Id of the node owner of the event

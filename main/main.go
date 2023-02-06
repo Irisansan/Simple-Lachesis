@@ -28,6 +28,10 @@ func main() {
 	var store lachesis.Store
 	store.StoreValidators(validators)
 
+	// Election state
+	var election lachesis.Election
+	election.NewElection()
+
 	// Nodes in the network
 	node := make(dag.Network)
 	// input network file
@@ -93,16 +97,16 @@ func main() {
 			event.SetCreator(idx.ValidatorId(StrEvent[3]))
 			event.SetParents(common.StringsToParents(strings.Split(StrEvent[4], ",")))
 			event.SetEvent(&events)
-			event.SetFrame(store.CalcFrameIdx(event))
+			event.SetFrame(store.CalcFrameIdx(event, &election))
 			events[idx.EventId(StrEvent[0])] = event
 			store.StoreEvents(events)
 		}
 		i++
 	}
 
-	for id, _ := range events {
-		fmt.Println(events[id])
-	}
+	//for id, _ := range events {
+	//	fmt.Println(events[id])
+	//}
 
 	var A idx.EventId = "EventA04"
 	var B idx.EventId = "EventB01"
@@ -118,5 +122,7 @@ func main() {
 	//		fmt.Print(j.Id())
 	//	}
 	//}
+
+	fmt.Println(store.DecidedFrames)
 
 }

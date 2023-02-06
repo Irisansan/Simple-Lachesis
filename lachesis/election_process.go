@@ -4,12 +4,12 @@ import (
 	"Lachesis/dag"
 	"Lachesis/idx"
 	"Lachesis/pos"
+	"fmt"
 )
 
 // ProcessRoot calculates Atropos votes only for the new root.
 // If this root observes that the current election is decided, then return decided Atropos
-func (el *Election) ProcessRoot(newRoot dag.Event) *Res {
-	frameToDecide := el.lastDecidedFrame + 1
+func (el *Election) ProcessRoot(newRoot dag.Event, frameToDecide idx.Frame) *Res {
 	round := newRoot.Frame() - frameToDecide
 
 	// the frame does not decide about itself
@@ -25,9 +25,9 @@ func (el *Election) ProcessRoot(newRoot dag.Event) *Res {
 	validators := vv.Validators()
 	// To get (validators - decidedRoots.keys)
 	val := make(map[idx.ValidatorId]pos.Weight)
-	for v, w := range validators {
-		if _, exist := el.decidedRoots[v]; exist == false {
-			val[v] = w
+	for validatorId, weight := range validators {
+		if _, exist := el.decidedRoots[validatorId]; exist == false {
+			val[validatorId] = weight
 		}
 	}
 
@@ -46,17 +46,16 @@ func (el *Election) ProcessRoot(newRoot dag.Event) *Res {
 				}
 			}
 			votevalue.decided = false
-
 			el.votes[voteid] = votevalue
-
 		} else {
 			candidate := dag.Event{}
 			var yesVotes pos.Weight = 0
 			var noVotes pos.Weight = 0
 			for _, prevRoot := range prevRoots {
-				voteid.fromRoot = prevRoot.Id()
-				voteid.forValidator = validator
-				prevVote := el.votes[voteid]
+				preVoteid := voteID{}
+				preVoteid.fromRoot = prevRoot.Id()
+				preVoteid.forValidator = validator
+				prevVote := el.votes[preVoteid]
 				if prevVote.yes {
 					candidate = prevVote.observedRoot
 					yesVotes += el.store.validators.GetWeightById(prevRoot.Creator())
@@ -69,11 +68,19 @@ func (el *Election) ProcessRoot(newRoot dag.Event) *Res {
 			votevalue.decided = el.store.validators.HasQuorum(yesVotes) || el.store.validators.HasQuorum(noVotes)
 			if votevalue.decided {
 				el.decidedRoots[validator] = votevalue
+				if votevalue.yes {
+					el.sortDecidedRoot = append(el.sortDecidedRoot, votevalue.observedRoot)
+				}
 			}
+			voteid.fromRoot = newRoot.Id()
+			voteid.forValidator = validator
+			el.votes[voteid] = votevalue
 		}
 	}
-	// Not finished yet
-	return nil // nil if no decided root
+
+	atropos := el.firstYesVote()
+
+	return atropos // nil if no decided root
 }
 
 func (el *Election) ObservedRootsInGivenFrame(root dag.Event, frame idx.Frame) Roots {
@@ -87,6 +94,23 @@ func (el *Election) ObservedRootsInGivenFrame(root dag.Event, frame idx.Frame) R
 	return observedRoots
 }
 
-func (el *Election) chooseAtropos() {
+func (el *Election) firstYesVote() *Res {
+	if el.sortDecidedRoot == nil {
+		fmt.Println("all the roots are decided as 'no'")
+		return nil
+	} else {
+		result := Res{}
+		result.Frame = el.sortDecidedRoot[0].Frame()
+		result.Atropos = el.sortDecidedRoot[0]
+		fmt.Println("The Atropos is ", result.Atropos.Id(), "from frame ", result.Frame)
+		return &result
+	}
+}
 
+// Reset erases the current election state, prepare for new election frame
+func (el *Election) Reset(store Store) {
+	el.store = store
+	el.votes = make(map[voteID]voteValue)
+	el.decidedRoots = make(map[idx.ValidatorId]voteValue)
+	el.sortDecidedRoot = nil
 }
