@@ -28,11 +28,11 @@ for i in range(1, num_levels):
         if node in G.nodes:
             parent = (i-1, j)
             self_ref = False
-            while not self_ref and parent[0]>=1:
-                parent = (parent[0]-1, parent[1])
+            while not self_ref and parent[0]>=0:
                 if parent in G.nodes:
                     G.add_edge(node, parent)
                     self_ref = True
+                parent = (parent[0]-1, parent[1])
             for k in range(num_nodes):
                 if random.random() < observing_probability:
                     target = (i-1, k)
