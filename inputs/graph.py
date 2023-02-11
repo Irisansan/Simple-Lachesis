@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import random
 import matplotlib
 matplotlib.use('Agg')
+from collections import defaultdict
 
 def createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate=False, show_graph=False, save_plot=False, filename='plot.png'):
     # Initialize the graph
@@ -11,6 +12,7 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
     # Add nodes and assign colors
     colors = ['red', 'orange', 'yellow', 'gray', 'olive', 'green', 'blue', 'cyan', 'pink', 'purple', 'brown']
     color_map = {}
+    parent_count = {}
 
     for i in range(num_levels):
         for j in range(num_nodes):
@@ -19,6 +21,7 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                 G.add_node(node)
                 if i == 0:
                     color_map[node] = colors[j % len(colors)]
+                    parent_count[node] = 0
                 else:
                     parent = (i-1, j)
                     self_ref = False
@@ -26,13 +29,16 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                         if parent in G.nodes:
                             if parent in color_map:
                                 color_map[node] = color_map[parent]
+                                parent_count[node] = parent_count[parent] + 1
                             else:
                                 color_map[node] = colors[j%len(colors)]
+                                parent_count[node] = 0
                             G.add_edge(node, parent)
                             self_ref = True
                         parent = (parent[0]-1, parent[1])
                 if node not in color_map:
                     color_map[node] = random.choice(colors)
+                    parent_count[node] = 0
 
     # Add edges
     for i in range(1, num_levels):
@@ -54,8 +60,8 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
 
     fig = plt.figure(figsize=(20, 10))
     pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
-    labels = {(i, j): r'${}_{{{}}}$'.format(j+1, i) for i in range(num_levels) for j in range(num_nodes) if (i, j) in G.nodes}
-    nx.draw(G, pos, with_labels=True, labels=labels, font_family='serif', node_color=[color_map.get(node, color_map[node]) for node in G.nodes()], node_size=800, font_weight='bold')
+    labels = {(i, j): r'${}_{{{},{}}}$'.format(j+1, i, parent_count[(i, j)]) for i in range(num_levels) for j in range(num_nodes) if (i, j) in G.nodes}
+    nx.draw(G, pos, with_labels=True, labels=labels, font_family='serif', font_size=9, node_color=[color_map.get(node, color_map[node]) for node in G.nodes()], node_size=900, font_weight='bold')
 
     if annotate:
         plt.text(0.007, 0.98, "node_present_probability: {}".format(node_present_probability), fontsize=8, fontname='monospace', transform=fig.transFigure)
