@@ -1,0 +1,18 @@
+node: (1,0,0);
+node: (3,0,0);
+node: (5,0,0);
+node: (6,0,0);
+node: (8,0,0);
+node: (10,0,0);
+node: (3,1,1); child: (3,0,1); child: (1,0,1); child: (8,0,1);
+node: (4,1,0); child: (1,0,0); child: (5,0,0);
+node: (6,1,1); child: (6,0,1); child: (3,0,1); child: (5,0,1); child: (8,0,1); child: (10,0,1);
+node: (9,1,0);
+node: (10,1,1); child: (10,0,1); child: (5,0,1); child: (8,0,1);
+node: (1,2,1); child: (1,0,1); child: (6,1,1);
+node: (2,2,0); child: (3,1,0);
+node: (4,2,1); child: (4,1,1); child: (10,1,1);
+node: (5,2,1); child: (5,0,1); child: (9,1,1); child: (10,1,1);
+node: (8,2,1); child: (8,0,1); child: (6,1,1);
+node: (9,2,1); child: (9,1,1); child: (4,1,1);
+node: (10,2,2); child: (10,1,2); child: (9,1,2);

@@ -5,7 +5,7 @@ import matplotlib
 matplotlib.use('Agg')
 from collections import defaultdict
 
-def createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate=False, show_graph=False, save_plot=False, filename='plot.png'):
+def createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate=False, show_graph=False, save_plot=False, graph_filename='graph.png', txt_filename='txt.txt'):
     # Initialize the graph
     G = nx.DiGraph()
 
@@ -69,10 +69,18 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
         plt.text(0.007, 0.94, "num_nodes: {}".format(num_nodes), fontsize=8, fontname='monospace', transform=fig.transFigure)
         plt.text(0.007, 0.92, "num_levels: {}".format(num_levels), fontsize=8, fontname='monospace', transform=fig.transFigure)
 
+    with open(txt_filename, "w") as f:
+        for node in G:
+            f.write("node: (" + str(node[1]+1) + "," + str(node[0]) + "," + str(parent_count[node[0], node[1]]) + ")")
+            f.write(";")
+            for child in G[node]:
+                f.write(" child: (" + str(child[1]+1) + "," + str(child[0]) + "," + str(parent_count[node[0], node[1]]) + ");")
+            f.write("\n")
+
     if save_plot:
         manager = plt.get_current_fig_manager()
         manager.full_screen_toggle()
-        fig.savefig(filename)
+        fig.savefig(graph_filename)
     if show_graph:
         plt.show()
     plt.close()
@@ -147,6 +155,7 @@ if __name__ == "__main__":
         else:
             observing_probability = observe_prob_input
 
-        filename = f'graphs/graph_{i+1}.png'
-        createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate, show_graph=False, save_plot=True, filename=filename)
+        graph_filename = f'graphs/graph_{i+1}.png'
+        txt_filename = f'graphs/graph_{i+1}.txt'
+        createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate, show_graph=False, save_plot=True, graph_filename=graph_filename, txt_filename=txt_filename)
 
