@@ -10,4 +10,4 @@ EventC02;1;2;c;EventC01,EventD01
 EventC03;1;3;c;EventC02,EventD02
 EventD01;1;1;d;EventA01
 EventD02;1;2;d;EventD01,EventB02
-Eventd02;1;2;d;EventD01
+EventD02;1;2;d;EventD01

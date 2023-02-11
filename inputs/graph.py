@@ -4,12 +4,12 @@ import random
 import matplotlib
 matplotlib.use('Agg')
 
-def createGraph(num_levels, num_nodes, node_present_probability, observing_probability, show_graph=False, save_plot=False, filename='plot.png'):
+def createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate=False, show_graph=False, save_plot=False, filename='plot.png'):
     # Initialize the graph
     G = nx.DiGraph()
 
     # Add nodes and assign colors
-    colors = ['red', 'green', 'blue', 'purple', 'orange', 'brown', 'pink', 'gray', 'olive', 'cyan']
+    colors = ['red', 'orange', 'yellow', 'gray', 'olive', 'green', 'blue', 'cyan', 'pink', 'purple', 'brown']
     color_map = {}
 
     for i in range(num_levels):
@@ -27,7 +27,7 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                             if parent in color_map:
                                 color_map[node] = color_map[parent]
                             else:
-                                color_map[node] = random.choice(colors)
+                                color_map[node] = colors[j%len(colors)]
                             G.add_edge(node, parent)
                             self_ref = True
                         parent = (parent[0]-1, parent[1])
@@ -52,20 +52,32 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                         if target in G.nodes:
                             G.add_edge(node, target)
 
-    # Plot the graph
     fig = plt.figure(figsize=(20, 10))
     pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
     labels = {(i, j): r'${}_{{{}}}$'.format(j+1, i) for i in range(num_levels) for j in range(num_nodes) if (i, j) in G.nodes}
     nx.draw(G, pos, with_labels=True, labels=labels, font_family='serif', node_color=[color_map.get(node, color_map[node]) for node in G.nodes()], node_size=800, font_weight='bold')
+
+    if annotate:
+        plt.text(0.007, 0.98, "node_present_probability: {}".format(node_present_probability), fontsize=8, fontname='monospace', transform=fig.transFigure)
+        plt.text(0.007, 0.96, "observing_probability: {}".format(observing_probability), fontsize=8, fontname='monospace', transform=fig.transFigure)
+        plt.text(0.007, 0.94, "num_nodes: {}".format(num_nodes), fontsize=8, fontname='monospace', transform=fig.transFigure)
+        plt.text(0.007, 0.92, "num_levels: {}".format(num_levels), fontsize=8, fontname='monospace', transform=fig.transFigure)
+
     if save_plot:
         manager = plt.get_current_fig_manager()
         manager.full_screen_toggle()
-        fig.savefig(filename) 
+        fig.savefig(filename)
     if show_graph:
         plt.show()
     plt.close()
 
+
 if __name__ == "__main__":
+    annotate_graph = input("Annotate graphs (y/n): (Default is no) ")
+    if annotate_graph=="y" or annotate_graph=="Y":
+        annotate=True
+    else:
+        annotate=False
     num_graphs = input("How many graphs would you like to generate: (Default is 50) ")
     if num_graphs=='':
         num_graphs=50
@@ -130,5 +142,5 @@ if __name__ == "__main__":
             observing_probability = observe_prob_input
 
         filename = f'graphs/graph_{i+1}.png'
-        createGraph(num_levels, num_nodes, node_present_probability, observing_probability, show_graph=False, save_plot=True, filename=filename)
+        createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate, show_graph=False, save_plot=True, filename=filename)
 
