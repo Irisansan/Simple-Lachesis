@@ -60,7 +60,7 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
 
     fig = plt.figure(figsize=(20, 10))
     pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
-    labels = {(i, j): r'${}_{{{},{}}}$'.format(j+1, i, parent_count[(i, j)]) for i in range(num_levels) for j in range(num_nodes) if (i, j) in G.nodes}
+    labels = {(i, j): r'$\mathrm{{{}}}_{{{},{}}}$'.format(chr(j+65), i, parent_count[(i, j)]) for i in range(num_levels) for j in range(num_nodes) if (i, j) in G.nodes}
     nx.draw(G, pos, with_labels=True, labels=labels, font_family='serif', font_size=9, node_color=[color_map.get(node, color_map[node]) for node in G.nodes()], node_size=900, font_weight='bold')
 
     if annotate:
@@ -71,10 +71,10 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
 
     with open(txt_filename, "w") as f:
         for node in G:
-            f.write("node: (" + str(node[1]+1) + "," + str(node[0]) + "," + str(parent_count[node[0], node[1]]) + ")")
+            f.write("node: (" + str(chr(node[1]+65)) + "," + str(node[0]) + "," + str(parent_count[node[0], node[1]]) + ")")
             f.write(";")
             for child in G[node]:
-                f.write(" child: (" + str(child[1]+1) + "," + str(child[0]) + "," + str(parent_count[node[0], node[1]]) + ");")
+                f.write(" child: (" + str(chr(child[1]+65)) + "," + str(child[0]) + "," + str(parent_count[node[0], node[1]]) + ");")
             f.write("\n")
 
     if save_plot:
