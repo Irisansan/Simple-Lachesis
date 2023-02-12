@@ -37,7 +37,7 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                             self_ref = True
                         parent = (parent[0]-1, parent[1])
                 if node not in color_map:
-                    color_map[node] = random.choice(colors)
+                    color_map[node] = colors[j%len(colors)]
                     parent_count[node] = 0
 
     # Add edges
