@@ -113,7 +113,8 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
     # Scale the figure size proportionally to the number of levels and nodes
     if num_levels >= 15:
         figsize[0] = figsize[0] * num_levels/20
-    if num_nodes >= 15:
+    if num_nodes >= 10:
+        figsize[0] = figsize[0] * num_nodes/4
         figsize[1] = figsize[1] * num_nodes/10
     fig = plt.figure(figsize=(figsize[0], figsize[1]))
     pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
@@ -220,12 +221,12 @@ if __name__ == "__main__":
     for i in range(num_graphs):
         # print("GRAPH", i+1)
         if level_input is None:
-            num_levels = random.randint(3, 50)
+            num_levels = random.randint(5, 100)
         else:
             num_levels = level_input
 
         if node_input is None:
-            num_nodes = random.randint(3, 10)
+            num_nodes = random.randint(3, 25)
         else:
             num_nodes = node_input
 
