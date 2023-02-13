@@ -1,9 +1,8 @@
+node: (A,0,0);
 node: (B,0,0);
-node: (C,0,0);
-node: (D,0,0);
-node: (A,1,0); child: (C,0,0); child: (D,0,0);
-node: (B,1,1); child: (B,0,1); child: (C,0,1); child: (D,0,1);
-node: (C,1,1); child: (C,0,1); child: (B,0,1);
-node: (D,1,1); child: (D,0,1); child: (C,0,1);
-node: (B,2,2); child: (B,1,2); child: (A,1,2);
-node: (C,2,2); child: (C,1,2); child: (A,1,2);
+node: (E,0,0);
+node: (A,1,1); child: (A,0,0); child: (E,0,0);
+node: (B,1,1); child: (B,0,0); child: (A,0,0); child: (E,0,0);
+node: (B,2,2); child: (B,1,1);
+node: (C,2,0); child: (A,1,1);
+node: (E,2,1); child: (E,0,0);

@@ -14,8 +14,7 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
 
     # Add nodes and assign colors
     colors = ['red', 'orange', 'yellow', 'green', 'blue',
-              'green', 'blue', 'cyan', 'pink', 'purple',
-              'gray', 'olive', 'brown']
+              'cyan', 'pink', 'purple', 'gray', 'olive', 'brown']
     color_map = {}
     parent_count = {}
     cheater_nodes = {}
@@ -74,8 +73,8 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
                         if target in G.nodes:
                             G.add_edge(node, target)
 
-    labels = {(i, j): r'$\mathrm{{{}}}_{{{},{}}}$'.format(chr(j+65), i, parent_count[(
-        i, j)]) for i in range(num_levels) for j in range(num_nodes) if (i, j) in G.nodes}
+    labels = {(i, j): (chr(j+65), i, parent_count[(i, j)]) for i in range(num_levels)
+              for j in range(num_nodes) if (i, j) in G.nodes}
 
     # Cheaters inherit the color and letter of the parent node
     for node in cheater_nodes.keys():
@@ -86,17 +85,21 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
         for i in range(num_levels):
             # color_map[node] = cheater_nodes[node]
             if (i, j) in G.nodes:
-                labels[(i, j)] = r'$\mathrm{{{}}}_{{{},{}}}$'.format(chr(cheater_nodes[node][1]+65),
-                                                                     i, indirect_parents)
+                labels[(i, j)] = (
+                    chr(cheater_nodes[node][1]+65), i, indirect_parents)
                 indirect_parents += 1
                 color_map[(i, j)] = color_map[(
                     cheater_nodes[node][0], cheater_nodes[node][1])]
 
+    # [r'$\mathrm{{{}}}_{{{},{}}}$'.format(
+    # labels[val][0], labels[val][1], labels[val][2]) for val in labels.keys()]
+
     # Plot the figure
     fig = plt.figure(figsize=(20, 10))
     pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
-    nx.draw(G, pos, with_labels=True, labels=labels, font_family='serif', font_size=9, node_color=[
-            color_map.get(node, color_map[node]) for node in G.nodes()], node_size=900, font_weight='bold')
+    nx.draw(G, pos, with_labels=True, labels={val: r'$\mathrm{{{}}}_{{{},{}}}$'.format(
+        labels[val][0], labels[val][1], labels[val][2]) for val in labels}, font_family='serif', font_size=9, node_color=[
+        color_map.get(node, color_map[node]) for node in G.nodes()], node_size=900, font_weight='bold')
 
     if annotate:
         plt.text(0.007, 0.98, "node_present_probability: {}".format(
@@ -114,12 +117,12 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
     # Save graph as text data
     with open(txt_filename, "w") as f:
         for node in G:
-            f.write("node: (" + str(chr(node[1]+65)) + "," + str(
-                node[0]) + "," + str(parent_count[node[0], node[1]]) + ")")
+            f.write("node: (" + str(labels[node][0]) + "," + str(
+                labels[node][1]) + "," + str(labels[node][2]) + ")")
             f.write(";")
             for child in G[node]:
-                f.write(" child: (" + str(chr(child[1]+65)) + "," + str(
-                    child[0]) + "," + str(parent_count[node[0], node[1]]) + ");")
+                f.write(" child: (" + str(labels[child][0]) + "," + str(
+                    labels[child][1]) + "," + str(labels[child][2]) + ");")
             f.write("\n")
 
     # Save plot as image
