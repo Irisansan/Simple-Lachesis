@@ -13,11 +13,12 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
     G = nx.DiGraph()
 
     # Add nodes and assign colors
-    colors = ['red', 'orange', 'yellow', 'gray', 'olive',
-              'green', 'blue', 'cyan', 'pink', 'purple', 'brown']
+    colors = ['red', 'orange', 'yellow', 'green', 'blue',
+              'green', 'blue', 'cyan', 'pink', 'purple',
+              'gray', 'olive', 'brown']
     color_map = {}
     parent_count = {}
-    cheater_nodes = []
+    cheater_nodes = {}
 
     for i in range(num_levels):
         for j in range(num_nodes):
@@ -49,8 +50,8 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
                         for k in range(num_nodes):
                             if k != j and (i-1, k) in G.nodes:
                                 # print("CHEATER")
-                                # print(node)
-                                cheater_nodes.append(node)
+                                # print(node[1]+1, node[0])
+                                cheater_nodes[node] = (i-1, k)
                                 target = (i-1, k)
                                 G.add_edge(node, target)
                                 break
@@ -59,7 +60,7 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
     for i in range(1, num_levels):
         for j in range(num_nodes):
             node = (i, j)
-            if node in G.nodes and node not in cheater_nodes:
+            if node in G.nodes and node not in cheater_nodes.keys():
                 parent = (i-1, j)
                 self_ref = False
                 while not self_ref and parent[0] >= 0:
@@ -73,10 +74,25 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
                         if target in G.nodes:
                             G.add_edge(node, target)
 
-    fig = plt.figure(figsize=(20, 10))
-    pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
     labels = {(i, j): r'$\mathrm{{{}}}_{{{},{}}}$'.format(chr(j+65), i, parent_count[(
         i, j)]) for i in range(num_levels) for j in range(num_nodes) if (i, j) in G.nodes}
+
+    # Cheaters inherit the color and letter of the parent node
+    for node in cheater_nodes.keys():
+        # print("node:", node, ", parent", cheater_nodes[node])
+        i, j = node[0], node[1]
+        indirect_parents = parent_count[(
+            cheater_nodes[node][0], cheater_nodes[node][1])] + 1
+        for i in range(num_levels):
+            # color_map[node] = cheater_nodes[node]
+            if (i, j) in G.nodes:
+                labels[(i, j)] = r'$\mathrm{{{}}}_{{{},{}}}$'.format(chr(cheater_nodes[node][1]+65),
+                                                                     i, indirect_parents)
+                indirect_parents += 1
+
+    # Plot the figure
+    fig = plt.figure(figsize=(20, 10))
+    pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
     nx.draw(G, pos, with_labels=True, labels=labels, font_family='serif', font_size=9, node_color=[
             color_map.get(node, color_map[node]) for node in G.nodes()], node_size=900, font_weight='bold')
 
@@ -175,6 +191,7 @@ if __name__ == "__main__":
             observe_prob_input = float(observe_prob_input)
 
     for i in range(num_graphs):
+        # print("GRAPH", i+1)
         if level_input is None:
             num_levels = random.randint(3, 50)
         else:
