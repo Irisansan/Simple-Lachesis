@@ -6,7 +6,9 @@ import matplotlib
 matplotlib.use('Agg')
 
 
-def createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate=False, show_graph=False, save_plot=False, graph_filename='graph.png', txt_filename='txt.txt'):
+def createGraph(cheater_probability, num_levels, num_nodes, node_present_probability,
+                observing_probability, annotate=False, show_graph=False, save_plot=False,
+                graph_filename='graph.png', txt_filename='txt.txt'):
     # Initialize the graph
     G = nx.DiGraph()
 
@@ -43,7 +45,7 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                     color_map[node] = colors[j % len(colors)]
                     parent_count[node] = 0
                 if not any(n[1] == j and n[0] < i for n in G.nodes):
-                    if random.random() < 0.3:
+                    if random.random() < cheater_probability:
                         for k in range(num_nodes):
                             if k != j and (i-1, k) in G.nodes:
                                 # print("CHEATER")
@@ -87,9 +89,11 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                  fontsize=8, fontname='monospace', transform=fig.transFigure)
         plt.text(0.007, 0.92, "num_levels: {}".format(num_levels),
                  fontsize=8, fontname='monospace', transform=fig.transFigure)
-
+        plt.text(0.007, 0.90, "cheat_prob: {}".format(cheater_probability),
+                 fontsize=8, fontname='monospace', transform=fig.transFigure)
     # print(cheater_nodes)
 
+    # Save graph as text data
     with open(txt_filename, "w") as f:
         for node in G:
             f.write("node: (" + str(chr(node[1]+65)) + "," + str(
@@ -100,6 +104,7 @@ def createGraph(num_levels, num_nodes, node_present_probability, observing_proba
                     child[0]) + "," + str(parent_count[node[0], node[1]]) + ");")
             f.write("\n")
 
+    # Save plot as image
     if save_plot:
         manager = plt.get_current_fig_manager()
         manager.full_screen_toggle()
@@ -121,6 +126,13 @@ if __name__ == "__main__":
         num_graphs = 50
     else:
         num_graphs = int(num_graphs)
+
+    cheater_input = input(
+        "Enter the probability that a random validator node is a cheater: (Default is 0.2)")
+    if cheater_input == '':
+        cheater_input = 0.2
+    else:
+        cheater_input = float(cheater_input)
 
     level_input = input(
         "Enter the number of levels in each graph or type 'r' or 'random' for a random value each iteration: (Default is 10) ")
@@ -185,5 +197,5 @@ if __name__ == "__main__":
 
         graph_filename = f'graphs/graph_{i+1}.png'
         txt_filename = f'graphs/graph_{i+1}.txt'
-        createGraph(num_levels, num_nodes, node_present_probability, observing_probability, annotate,
+        createGraph(cheater_input, num_levels, num_nodes, node_present_probability, observing_probability, annotate,
                     show_graph=False, save_plot=True, graph_filename=graph_filename, txt_filename=txt_filename)
