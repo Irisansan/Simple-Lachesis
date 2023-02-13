@@ -108,11 +108,20 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
     # labels[val][0], labels[val][1], labels[val][2]) for val in labels.keys()]
 
     # Plot the figure
-    fig = plt.figure(figsize=(20, 10))
+
+    figsize = [20, 10]
+    # Scale the figure size proportionally to the number of levels and nodes
+    if num_levels >= 15:
+        figsize[0] = figsize[0] * num_levels/20
+    if num_nodes >= 15:
+        figsize[1] = figsize[1] * num_nodes/10
+    fig = plt.figure(figsize=(figsize[0], figsize[1]))
     pos = {(i, j): (i, j) for i in range(num_levels) for j in range(num_nodes)}
     nx.draw(G, pos, with_labels=True, labels={val: r'$\mathrm{{{}}}_{{{},{}}}$'.format(
-        labels[val][0], labels[val][1], labels[val][2]) for val in labels}, font_family='serif', font_size=9, node_color=[
-        color_map.get(node, color_map[node]) for node in G.nodes()], node_size=900, font_weight='bold')
+        labels[val][0], labels[val][1], labels[val][2]) for val in labels}, font_family='serif', font_size=9, node_color=[color_map.get(node, color_map[node]) for node in G.nodes()], node_size=900, font_weight='bold')
+
+    # Adjust figure parameters
+    plt.tight_layout()
 
     if annotate:
         plt.text(0.007, 0.98, "node_present_probability: {}".format(
@@ -138,11 +147,11 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
                     labels[child][1]) + "," + str(labels[child][2]) + ");")
             f.write("\n")
 
-    # Save plot as image
+    # Save plot as a PDF
     if save_plot:
         manager = plt.get_current_fig_manager()
         manager.full_screen_toggle()
-        fig.savefig(graph_filename)
+        fig.savefig(graph_filename, format='pdf', dpi=300, bbox_inches='tight')
     if show_graph:
         plt.show()
     plt.close()
@@ -230,7 +239,7 @@ if __name__ == "__main__":
         else:
             observing_probability = observe_prob_input
 
-        graph_filename = f'graphs/graph_{i+1}.png'
+        graph_filename = f'graphs/graph_{i+1}.pdf'
         txt_filename = f'graphs/graph_{i+1}.txt'
         createGraph(cheater_input, num_levels, num_nodes, node_present_probability, observing_probability, annotate,
                     show_graph=False, save_plot=True, graph_filename=graph_filename, txt_filename=txt_filename)
