@@ -46,7 +46,7 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
                     parent_count[node] = 0
                 if not any(n[1] == j and n[0] < i for n in G.nodes):
                     if random.random() < cheater_probability:
-                        for k in range(num_nodes):
+                        for k in random.sample(range(num_nodes), num_nodes):
                             if k != j and (i-1, k) in G.nodes:
                                 # print("CHEATER")
                                 # print(node[1]+1, node[0])
