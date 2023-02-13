@@ -89,6 +89,8 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
                 labels[(i, j)] = r'$\mathrm{{{}}}_{{{},{}}}$'.format(chr(cheater_nodes[node][1]+65),
                                                                      i, indirect_parents)
                 indirect_parents += 1
+                color_map[(i, j)] = color_map[(
+                    cheater_nodes[node][0], cheater_nodes[node][1])]
 
     # Plot the figure
     fig = plt.figure(figsize=(20, 10))
