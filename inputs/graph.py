@@ -76,20 +76,33 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
     labels = {(i, j): (chr(j+65), i, parent_count[(i, j)]) for i in range(num_levels)
               for j in range(num_nodes) if (i, j) in G.nodes}
 
-    # Cheaters inherit the color and letter of the parent node
+    # Cheaters inherit the color and letter of the deepest cheater
     for node in cheater_nodes.keys():
         # print("node:", node, ", parent", cheater_nodes[node])
         i, j = node[0], node[1]
-        indirect_parents = parent_count[(
-            cheater_nodes[node][0], cheater_nodes[node][1])] + 1
+
+        cheating_parents = 0
+        deepest_cheater = cheater_nodes[node]
+        # Iterate back along the row to see if a deeper node is a cheater
+        for _i in range(deepest_cheater[0], -1, -1):
+            if (_i, deepest_cheater[1]) in G.nodes:
+                cheating_parents += 1
+                deepest_cheater = (_i, deepest_cheater[1])
+
+        while (deepest_cheater in cheater_nodes.keys()):
+            deepest_cheater = cheater_nodes[deepest_cheater]
+            for _i in range(deepest_cheater[0], -1, -1):
+                if (_i, deepest_cheater[1]) in G.nodes:
+                    cheating_parents += 1
+                    deepest_cheater = (_i, deepest_cheater[1])
+
         for i in range(num_levels):
             # color_map[node] = cheater_nodes[node]
             if (i, j) in G.nodes:
                 labels[(i, j)] = (
-                    chr(cheater_nodes[node][1]+65), i, indirect_parents)
-                indirect_parents += 1
-                color_map[(i, j)] = color_map[(
-                    cheater_nodes[node][0], cheater_nodes[node][1])]
+                    chr(deepest_cheater[1]+65), i, cheating_parents)
+                cheating_parents += 1
+                color_map[(i, j)] = color_map[(deepest_cheater)]
 
     # [r'$\mathrm{{{}}}_{{{},{}}}$'.format(
     # labels[val][0], labels[val][1], labels[val][2]) for val in labels.keys()]
@@ -149,7 +162,7 @@ if __name__ == "__main__":
         num_graphs = int(num_graphs)
 
     cheater_input = input(
-        "Enter the probability that a random validator node is a cheater: (Default is 0.2)")
+        "Enter the probability that a random validator node is a cheater: (Default is 0.2) ")
     if cheater_input == '':
         cheater_input = 0.2
     else:
