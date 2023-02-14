@@ -8,7 +8,8 @@ matplotlib.use('Agg')
 
 def createGraph(cheater_probability, num_levels, num_nodes, node_present_probability,
                 observing_probability, annotate=False, show_graph=False, save_plot=False,
-                graph_filename='graph.png', txt_filename='txt.txt'):
+                graph_filename='graph.png', txt_filename_format_one='txt.txt',
+                txt_filename_format_two='txt2.txt'):
     # Initialize the graph
     G = nx.DiGraph()
 
@@ -137,8 +138,8 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
                  fontsize=8, fontname='monospace', transform=fig.transFigure)
     # print(cheater_nodes)
 
-    # Save graph as text data
-    with open(txt_filename, "w") as f:
+    # Save graph as text data in format one
+    with open(txt_filename_format_one, "w") as f:
         for node in G:
             f.write("node: (" + str(labels[node][0]) + "," + str(
                 labels[node][1]) + "," + str(labels[node][2]) + ")")
@@ -146,6 +147,22 @@ def createGraph(cheater_probability, num_levels, num_nodes, node_present_probabi
             for child in G[node]:
                 f.write(" child: (" + str(labels[child][0]) + "," + str(
                     labels[child][1]) + "," + str(labels[child][2]) + ");")
+            f.write("\n")
+
+    # Save graph as text data in format two
+    with open(txt_filename_format_two, "w") as f:
+        for node in G:
+            validator = "Event"+labels[node][0]
+            epoch = "1"  # affixed to 1 for now
+            seq = str(labels[node][2])
+            event = validator + seq
+            creator = chr(
+                cheater_nodes[node][1]+65) if node in cheater_nodes.keys() else chr(node[1]+65)
+            node_information = ";".join([event, epoch, seq, creator])
+            children_information = ",".join(
+                ["Event"+labels[child][0]+str(labels[child][2]) for child in G[node]])
+
+            f.write(node_information+";"+children_information)
             f.write("\n")
 
     # Save plot as a PDF
@@ -240,7 +257,9 @@ if __name__ == "__main__":
         else:
             observing_probability = observe_prob_input
 
-        graph_filename = f'graphs/graph_{i+1}.pdf'
-        txt_filename = f'graphs/graph_{i+1}.txt'
+        graph_filename = f'graphs/graph_{i+26}.pdf'
+        txt_filename_format_one = f'graphs/graph_{i+26}.txt'
+        txt_filename_format_two = f'graphs/events_{i+26}.txt'
         createGraph(cheater_input, num_levels, num_nodes, node_present_probability, observing_probability, annotate,
-                    show_graph=False, save_plot=True, graph_filename=graph_filename, txt_filename=txt_filename)
+                    show_graph=False, save_plot=True, graph_filename=graph_filename,
+                    txt_filename_format_one=txt_filename_format_one, txt_filename_format_two=txt_filename_format_two)
