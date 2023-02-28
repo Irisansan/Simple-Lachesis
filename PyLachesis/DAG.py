@@ -1,6 +1,10 @@
+# the DAG returned as a single Digraph here can be easily broken up into individual
+# nodes when/if multi-node/DAG Processor functionality is added
 import networkx as nx
 
 
+# refer to ./inputs/graph.py for how graphs are generated, ./inputs/graphs/ for
+# examples
 def convert_input_to_DAG(input_file):
     G = nx.DiGraph()
 
@@ -28,6 +32,7 @@ def convert_input_to_DAG(input_file):
                 G.add_edge((node_id[1:], timestamp),
                            (child_id[1:], child_timestamp))
 
+    '''
     print("Nodes in the graph:")
     for node in G.nodes(data=True):
         print(node)
@@ -35,10 +40,11 @@ def convert_input_to_DAG(input_file):
     print("Edges in the graph:")
     for edge in G.edges():
         print(edge)
+    '''
 
     return G
 
 
 if __name__ == "__main__":
     pass
-    # convert_input_to_DAG("graph_77.txt")
+    # convert_input_to_DAG("graph_14.txt")
