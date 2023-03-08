@@ -21,6 +21,7 @@ class Lachesis:
         self.cheater_list = []
         self.atropos_list = []
         self.validators = []
+        self.weight = 0
         self.adjacency_matrix = []
         self.time = 0
         self.global_vector = []
@@ -32,42 +33,46 @@ class Lachesis:
             None  # - gDAG nodes at any given concurrent logical timestep
         )
 
-    def check_for_roots(self):
-        print(self.local_dag)
-        print("check_for_roots")
-        for node in self.timestep_graph.nodes(data=True):
-            print(node)
-            if self.local_dag.has_node(node):
-                local_dag_node = self.local_dag.nodes[node]
-                print("LDN", local_dag_node)
-                predecessors = local_dag_node["predecessors"]
-                if predecessors == 0:
-                    if self.frame in self.root_sets:
-                        self.root_sets[self.frame].append(node)
+    def quorum(self):
+        self.weight * 3 / 2
 
-                validators_observed = local_dag_node["validators_observed"]
-                for source, target in self.local_dag.out_edges(local_dag_node[0]):
-                    source_data = self.local_dag.nodes[source]
-                    target_data = self.local_dag.nodes[target]
-                    target_validator = target[0]
-                    print(validators_observed, target_validator)
-                    if target_validator not in validators_observed:
-                        source_validator = source[0]
-                        if source_validator != target_validator:
-                            target_weight = target_data["weight"]
-                            if (
-                                target_validator
-                                in source_data["validators_observed"]
-                            ):
-                                source_data["validators_observed"][
-                                    target_validator
-                                ] += target_weight
-                            else:
-                                source_data["validators_observed"][
-                                    target_validator
-                                ] = target_weight
-                        validators_observed.add(target_validator)
-                        print("observed", validators_observed)
+    def check_for_roots(self):
+        for node in self.timestep_graph.nodes(data=True):
+            validator, timestamp = node[0]
+            dag_node = self.local_dag.nodes.get((validator, timestamp))
+            if dag_node is None:
+                continue
+
+            if dag_node["predecessors"] == 0:
+                if self.frame not in self.root_sets:
+                    self.root_sets[self.frame] = [validator]
+                else:
+                    self.root_sets[self.frame].append(validator)
+
+            else:
+                successor_match = None
+                for successor in self.local_dag.successors((validator, timestamp)):
+                    succ_validator = successor[0]
+                    if succ_validator == validator:
+                        successor_match = successor
+                        break
+
+                if successor_match is not None:
+                    successor_node = self.local_dag.nodes[successor_match]
+                    dag_node["weight"] = successor_node["weight"]
+                    dag_node["validators_observed"].update(
+                        successor_node["validators_observed"]
+                    )
+
+                for successor in self.local_dag.successors((validator, timestamp)):
+                    succ_validator = successor[0]
+                    if (
+                        succ_validator not in dag_node["validators_observed"]
+                        and succ_validator != validator
+                    ):
+                        edge_weight = dag_node["weight"]
+                        dag_node["weight"] += edge_weight
+                        dag_node["validators_observed"].add(succ_validator)
 
     """
     def elect_atropos(self):
@@ -95,6 +100,7 @@ def process_graph_by_timesteps(graph):
         timestamp = node[0][1]
         if validator not in lachesis_state.validators:
             lachesis_state.validators.append(validator)
+            lachesis_state.weight += node[1]["weight"]
         while timestamp == lachesis_state.time:
             # add node to graph of current nodes and local DAG
             lachesis_state.timestep_graph.add_node(
@@ -122,11 +128,13 @@ def process_graph_by_timesteps(graph):
             validator = node[0][0]
             timestamp = node[0][1]
         else:
+            lachesis_state.check_for_roots()
             lachesis_state.time += 1
             lachesis_state.timestep_graph = nx.DiGraph()
 
     G = lachesis_state.local_dag
 
+    """
     print("Nodes in the graph:")
     for node in G.nodes(data=True):
         print(node)
@@ -134,6 +142,7 @@ def process_graph_by_timesteps(graph):
     print("Edges in the graph:")
     for edge in G.edges():
         print(edge)
+    """
 
 
 if __name__ == "__main__":
