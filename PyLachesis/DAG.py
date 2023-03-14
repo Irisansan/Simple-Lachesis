@@ -19,7 +19,8 @@ def convert_input_to_DAG(input_file):
                 timestamp=timestamp,
                 predecessors=predecessors,
                 weight=1,
-                validators_observed=set(),
+                lowest_events_which_observe_event={},
+                highest_events_observed_by_event={},
             )
 
             for child_info in parts[1:]:
