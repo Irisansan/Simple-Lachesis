@@ -57,6 +57,9 @@ class Lachesis:
 
         for (node, target) in self.local_dag.out_edges(node[0]):
 
+            node = (node, self.local_dag.nodes.get(node))
+            target = (target, self.local_dag.nodes.get(target))
+
             t_events = target[1]["highest_events_observed_by_event"]
             for (key, value) in t_events.items():
                 if key not in node[1]["highest_events_observed_by_event"]:
@@ -64,9 +67,9 @@ class Lachesis:
                 elif value > node[1]["highest_events_observed_by_event"][key]:
                     node[1]["highest_events_observed_by_event"][key] = value
 
-            node[1]["highest_events_observed_by_event"][target] = target[1][
-                "predecessors"
-            ]
+            node[1]["highest_events_observed_by_event"][
+                (target[0][0], self.frame)
+            ] = target[1]["predecessors"]
 
     def lowest_events_which_observe_event(self, node):
         # source == node; nodes are validators and vice versa
