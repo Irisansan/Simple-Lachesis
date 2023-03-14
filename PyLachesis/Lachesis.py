@@ -25,6 +25,7 @@ class Lachesis:
         self.validator_weights = {}
         self.adjacency_matrix = []
         self.time = 0
+        self.last_frame_update_time = 0
         self.global_vector = []
         self.events_at_step = []
         # combining DAGs will eventually be required
@@ -35,14 +36,69 @@ class Lachesis:
         )
 
     def quorum(self):
-        self.weight * 2 / 3
+        return (
+            sum([self.validator_weights[x] for x in self.validator_weights]) * 2 / 3
+        )
+
+    # highest events observed by event algorithm:
+    # (validator, frame number): sequence (predecessor count) is the key: value pair
+    # successor = direct child
+
+    def highest_events_observed_by_event(self, node):
+        direct_child = None
+        for (parent, child) in node.out_edges():
+            if child[0][0] == node[0][0]:
+                direct_child = child
+                break
+
+        node.highest_events_observed_by_event = (
+            direct_child.highest_events_observed_by_event if direct_child else {}
+        )
+
+        for (node, target) in node.out_edges():
+
+            t_events = target.highest_events_observed_by_event
+            for (key, value) in t_events.items():
+                if key not in node.highest_events_observed_by_event:
+                    node.highest_events_observed_by_event[key] = value
+                elif value > node.highest_events_observed_by_event[key]:
+                    node.highest_events_observed_by_event[key] = value
+
+            node.highest_events_observed_by_event[target] = target.predecessor_count
+
+    def lowest_events_which_observe_event(self, node):
+        # source == node; nodes are validators and vice versa
+
+        for (node, target) in node.out_edges():
+
+            t_events = target.lowest_events_which_observe_event
+
+            for (key, value) in t_events.items():
+                if key not in node.highest_events_observed_by_event:
+                    node.highest_events_observed_by_event[key] = value
+                elif value < node.highest_events_observed_by_event[key]:
+                    node.highest_events_observed_by_event[key] = value
+
+            if (
+                target not in target.lowest_events_which_observe_event
+                or (node, self.frame)
+                not in target.lowest_events_which_observe_event[target]
+            ):
+                target.lowest_events_which_observe_event[
+                    (node, self.frame)
+                ] = node.predecessor_count
+            elif (
+                node.predecessor_count
+                < target.lowest_events_which_observe_event[(node, self.frame)]
+            ):
+                target.lowest_events_which_observe_event[
+                    (node, self.frame)
+                ] = node.predecessor_count
 
     def check_for_roots(self):
         for node in self.timestep_graph.nodes(data=True):
             validator, timestamp = node[0]
             dag_node = self.local_dag.nodes.get((validator, timestamp))
-            if dag_node is None:
-                continue
 
             if dag_node["predecessors"] == 0:
                 if self.frame not in self.root_sets:
@@ -50,18 +106,11 @@ class Lachesis:
                 else:
                     self.root_sets[self.frame].add(validator)
 
-            for _, successor in self.local_dag.out_edges((validator, timestamp)):
-                print("validator, timestamp", validator, timestamp)
-                print("successor", successor)
-                successor_node = self.local_dag.nodes[successor]
-                dag_node["validators_observed"].add(successor[0])
+                # Assign the root property to the node and store it in local_dag
+                dag_node["root"] = True
+                self.local_dag.nodes[(validator, timestamp)]["root"] = True
 
-                print(successor_node["validators_observed"])
-                dag_node["validators_observed"].update(
-                    successor_node["validators_observed"]
-                )
-
-        print(self.root_sets)
+        print(self.time, self.root_sets)
 
     """
     def elect_atropos(self):
@@ -89,7 +138,6 @@ def process_graph_by_timesteps(graph):
         timestamp = node[0][1]
         if validator not in lachesis_state.validators:
             lachesis_state.validators.append(validator)
-            lachesis_state.weight += node[1]["weight"]
             lachesis_state.validator_weights[validator] = node[1]["weight"]
         while timestamp == lachesis_state.time:
             # add node to graph of current nodes and local DAG
@@ -98,14 +146,16 @@ def process_graph_by_timesteps(graph):
                 timestamp=timestamp,
                 predecessors=node[1]["predecessors"],
                 weight=node[1]["weight"],
-                validators_observed=node[1]["validators_observed"],
+                lowest_events_which_observe_event={},
+                highest_events_observed_by_event={},
             )
             lachesis_state.local_dag.add_node(
                 (validator, timestamp),
                 timestamp=timestamp,
                 predecessors=node[1]["predecessors"],
                 weight=node[1]["weight"],
-                validators_observed=node[1]["validators_observed"],
+                lowest_events_which_observe_event={},
+                highest_events_observed_by_event={},
             )
 
             # Add edges from this node to its successors
@@ -117,12 +167,16 @@ def process_graph_by_timesteps(graph):
                 break
             validator = node[0][0]
             timestamp = node[0][1]
-        else:
-            lachesis_state.check_for_roots()
-            lachesis_state.time += 1
-            lachesis_state.timestep_graph = nx.DiGraph()
 
-    G = lachesis_state.local_dag
+            if validator not in lachesis_state.validators:
+                lachesis_state.validators.append(validator)
+                lachesis_state.validator_weights[validator] = node[1]["weight"]
+
+        lachesis_state.check_for_roots()
+        lachesis_state.time += 1
+        lachesis_state.timestep_graph = nx.DiGraph()
+
+    # G = lachesis_state.local_dag
 
     """
     print("Nodes in the graph:")
