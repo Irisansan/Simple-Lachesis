@@ -73,13 +73,9 @@ class Lachesis:
     def lowest_events_which_observe_event(self, node):
         for (source, target) in self.local_dag.out_edges(node[0]):
             target = (target, self.local_dag.nodes.get(target))
-            t_events = target[1]["lowest_events_which_observe_event"]
-            for (key, value) in t_events.items():
-                if key not in node[1]["lowest_events_which_observe_event"]:
-                    node[1]["lowest_events_which_observe_event"][key] = value
-                elif value < node[1]["lowest_events_which_observe_event"][key]:
-                    node[1]["lowest_events_which_observe_event"][key] = value
+            source = (source, self.local_dag.nodes.get(source))
 
+            # updates the target
             if target[0][0] not in target[1]["lowest_events_which_observe_event"]:
                 target[1]["lowest_events_which_observe_event"][target[0][0]] = {}
             if (node[0][0], self.frame) not in target[1][
@@ -98,6 +94,29 @@ class Lachesis:
                     (node[0][0], self.frame)
                 ] = node[1]["predecessors"]
 
+            # updates the source
+            t_events = target[1]["lowest_events_which_observe_event"]
+            for (key, value) in t_events.copy().items():
+                if key not in source[1]["lowest_events_which_observe_event"]:
+                    source[1]["lowest_events_which_observe_event"][key] = value
+                else:
+                    # vfp = validator and frame pair
+                    # seq = sequence number
+                    for (vfp, seq) in value.items():
+                        if (
+                            vfp
+                            not in source[1]["lowest_events_which_observe_event"][
+                                key
+                            ]
+                            or source[1]["lowest_events_which_observe_event"][key][
+                                vfp
+                            ]
+                            < seq
+                        ):
+                            source[1]["lowest_events_which_observe_event"][key][
+                                vfp
+                            ] = seq
+
     def check_for_roots(self):
         for node in self.timestep_nodes:
             validator, timestamp = node[0]
@@ -114,7 +133,6 @@ class Lachesis:
             # print("HAS:", self.local_dag.has_node(node))
             self.highest_events_observed_by_event(node)
             self.lowest_events_which_observe_event(node)
-            print(node)
 
         # print(self.time, self.root_sets)
 
@@ -184,12 +202,13 @@ def process_graph_by_timesteps(graph):
         print()
         lachesis_state.timestep_nodes = []
 
-    # G = lachesis_state.local_dag
-    """
+    G = lachesis_state.local_dag
+
     print("Nodes in the graph:")
     for node in G.nodes(data=True):
         print(node)
 
+    """
     print("Edges in the graph")
     for edge in G.edges():
         print(edge)
