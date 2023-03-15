@@ -46,9 +46,6 @@ class Lachesis:
                 direct_child = (child, self.local_dag.nodes.get(child))
                 break
 
-        print(node)
-        print(direct_child)
-
         node[1]["highest_events_observed_by_event"] = (
             direct_child[1]["highest_events_observed_by_event"]
             if direct_child
@@ -62,6 +59,7 @@ class Lachesis:
 
             t_events = target[1]["highest_events_observed_by_event"]
             for (key, value) in t_events.items():
+
                 if key not in node[1]["highest_events_observed_by_event"]:
                     node[1]["highest_events_observed_by_event"][key] = value
                 elif value > node[1]["highest_events_observed_by_event"][key]:
@@ -69,40 +67,42 @@ class Lachesis:
 
             node[1]["highest_events_observed_by_event"][
                 (target[0][0], self.frame)
-            ] = target[1]["predecessors"]
+            ] = (
+                target[1]["predecessors"]
+                if node[0][0] != target[0][0]
+                else node[1]["predecessors"]
+            )
 
     def lowest_events_which_observe_event(self, node):
-        # source == node; nodes are validators and vice versa
-
-        for (node, target) in self.local_dag.out_edges(node[0]):
-
-            t_events = target.lowest_events_which_observe_event
-
+        for (_, target_id) in self.local_dag.out_edges(node[0]):
+            target = self.local_dag.nodes.get(target_id)
+            t_events = target["lowest_events_which_observe_event"]
             for (key, value) in t_events.items():
-                if key not in node.highest_events_observed_by_event:
-                    node.highest_events_observed_by_event[key] = value
-                elif value < node.highest_events_observed_by_event[key]:
-                    node.highest_events_observed_by_event[key] = value
+                if key not in node[1]["lowest_events_observed_by_event"]:
+                    node[1]["lowest_events_observed_by_event"][key] = value
+                elif value < node[1]["lowest_events_observed_by_event"][key]:
+                    node[1]["lowest_events_observed_by_event"][key] = value
 
-            if (
-                target not in target.lowest_events_which_observe_event
-                or (node, self.frame)
-                not in target.lowest_events_which_observe_event[target]
-            ):
-                target.lowest_events_which_observe_event[(node, self.frame)] = node[
-                    1
-                ]["predecessors"]
+            if target_id not in target["lowest_events_which_observe_event"]:
+                target["lowest_events_which_observe_event"][target_id] = {}
+            if (node[0], self.frame) not in target[
+                "lowest_events_which_observe_event"
+            ][target_id]:
+                target["lowest_events_which_observe_event"][target_id][
+                    (node[0], self.frame)
+                ] = node[1]["predecessors"]
             elif (
                 node[1]["predecessors"]
-                < target.lowest_events_which_observe_event[(node, self.frame)]
+                < target["lowest_events_which_observe_event"][target_id][
+                    (node[0], self.frame)
+                ]
             ):
-                target.lowest_events_which_observe_event[(node, self.frame)] = node[
-                    1
-                ]["predecessors"]
+                target["lowest_events_which_observe_event"][target_id][
+                    (node[0], self.frame)
+                ] = node[1]["predecessors"]
 
     def check_for_roots(self):
         for node in self.timestep_nodes:
-            print(node)
             validator, timestamp = node[0]
             if node[1]["predecessors"] == 0:
                 if self.frame not in self.root_sets:
@@ -114,11 +114,12 @@ class Lachesis:
                 self.local_dag.nodes[(validator, timestamp)]["root"] = True
 
             # Check if node is in the timestep graph and get its out-edges
-            print("HAS:", self.local_dag.has_node(node))
+            # print("HAS:", self.local_dag.has_node(node))
             self.highest_events_observed_by_event(node)
-            self.lowest_events_which_observe_event(node)
+            # self.lowest_events_which_observe_event(node)
+            print("node at end", node)
 
-        print(self.time, self.root_sets)
+        # print(self.time, self.root_sets)
 
     """
     def elect_atropos(self):
@@ -181,7 +182,7 @@ def process_graph_by_timesteps(graph):
                 lachesis_state.validators.append(validator)
                 lachesis_state.validator_weights[validator] = node[1]["weight"]
         lachesis_state.check_for_roots()
-        print(lachesis_state.timestep_nodes)
+        # print(lachesis_state.timestep_nodes)
         lachesis_state.time += 1
         print()
         lachesis_state.timestep_nodes = []
