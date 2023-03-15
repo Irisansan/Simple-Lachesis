@@ -65,11 +65,7 @@ class Lachesis:
 
             node[1]["highest_events_observed_by_event"][
                 (target[0][0], self.frame)
-            ] = (
-                target[1]["predecessors"]
-                if node[0][0] != target[0][0]
-                else node[1]["predecessors"]
-            )
+            ] = target[1]["predecessors"]
 
     def lowest_events_which_observe_event(self, node):
         for (source, target) in self.local_dag.out_edges(node[0]):
