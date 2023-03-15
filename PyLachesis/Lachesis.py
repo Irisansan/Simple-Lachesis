@@ -28,11 +28,8 @@ class Lachesis:
         self.last_frame_update_time = 0
         self.global_vector = []
         self.events_at_step = []
-        # combining DAGs will eventually be required
         self.local_dag = nx.DiGraph()
-        # self.local_rich_dag - DAG with rich logging (block, frame, etc.) for events
         self.timestep_nodes = []
-        # - gDAG nodes at any given concurrent logical timestep
 
     def quorum(self):
         return (
@@ -74,31 +71,31 @@ class Lachesis:
             )
 
     def lowest_events_which_observe_event(self, node):
-        for (_, target_id) in self.local_dag.out_edges(node[0]):
-            target = self.local_dag.nodes.get(target_id)
-            t_events = target["lowest_events_which_observe_event"]
+        for (source, target) in self.local_dag.out_edges(node[0]):
+            target = (target, self.local_dag.nodes.get(target))
+            t_events = target[1]["lowest_events_which_observe_event"]
             for (key, value) in t_events.items():
-                if key not in node[1]["lowest_events_observed_by_event"]:
-                    node[1]["lowest_events_observed_by_event"][key] = value
-                elif value < node[1]["lowest_events_observed_by_event"][key]:
-                    node[1]["lowest_events_observed_by_event"][key] = value
+                if key not in node[1]["lowest_events_which_observe_event"]:
+                    node[1]["lowest_events_which_observe_event"][key] = value
+                elif value < node[1]["lowest_events_which_observe_event"][key]:
+                    node[1]["lowest_events_which_observe_event"][key] = value
 
-            if target_id not in target["lowest_events_which_observe_event"]:
-                target["lowest_events_which_observe_event"][target_id] = {}
-            if (node[0], self.frame) not in target[
+            if target[0][0] not in target[1]["lowest_events_which_observe_event"]:
+                target[1]["lowest_events_which_observe_event"][target[0][0]] = {}
+            if (node[0][0], self.frame) not in target[1][
                 "lowest_events_which_observe_event"
-            ][target_id]:
-                target["lowest_events_which_observe_event"][target_id][
-                    (node[0], self.frame)
+            ][target[0][0]]:
+                target[1]["lowest_events_which_observe_event"][target[0][0]][
+                    (node[0][0], self.frame)
                 ] = node[1]["predecessors"]
             elif (
                 node[1]["predecessors"]
-                < target["lowest_events_which_observe_event"][target_id][
-                    (node[0], self.frame)
+                < target[1]["lowest_events_which_observe_event"][target[0][0]][
+                    (node[0][0], self.frame)
                 ]
             ):
-                target["lowest_events_which_observe_event"][target_id][
-                    (node[0], self.frame)
+                target[1]["lowest_events_which_observe_event"][target[0][0]][
+                    (node[0][0], self.frame)
                 ] = node[1]["predecessors"]
 
     def check_for_roots(self):
@@ -116,8 +113,8 @@ class Lachesis:
             # Check if node is in the timestep graph and get its out-edges
             # print("HAS:", self.local_dag.has_node(node))
             self.highest_events_observed_by_event(node)
-            # self.lowest_events_which_observe_event(node)
-            print("node at end", node)
+            self.lowest_events_which_observe_event(node)
+            print(node)
 
         # print(self.time, self.root_sets)
 
