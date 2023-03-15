@@ -57,9 +57,10 @@ class Lachesis:
             t_events = target[1]["highest_events_observed_by_event"]
             for (key, value) in t_events.items():
 
-                if key not in node[1]["highest_events_observed_by_event"]:
-                    node[1]["highest_events_observed_by_event"][key] = value
-                elif value > node[1]["highest_events_observed_by_event"][key]:
+                if (
+                    key not in node[1]["highest_events_observed_by_event"]
+                    or value > node[1]["highest_events_observed_by_event"][key]
+                ):
                     node[1]["highest_events_observed_by_event"][key] = value
 
             node[1]["highest_events_observed_by_event"][
@@ -80,16 +81,13 @@ class Lachesis:
                 target[1]["lowest_events_which_observe_event"][target[0][0]] = {}
             if (node[0][0], self.frame) not in target[1][
                 "lowest_events_which_observe_event"
-            ][target[0][0]]:
-                target[1]["lowest_events_which_observe_event"][target[0][0]][
-                    (node[0][0], self.frame)
-                ] = node[1]["predecessors"]
-            elif (
-                node[1]["predecessors"]
-                < target[1]["lowest_events_which_observe_event"][target[0][0]][
-                    (node[0][0], self.frame)
-                ]
-            ):
+            ][target[0][0]] or node[1]["predecessors"] < target[1][
+                "lowest_events_which_observe_event"
+            ][
+                target[0][0]
+            ][
+                (node[0][0], self.frame)
+            ]:
                 target[1]["lowest_events_which_observe_event"][target[0][0]][
                     (node[0][0], self.frame)
                 ] = node[1]["predecessors"]
