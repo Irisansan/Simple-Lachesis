@@ -128,28 +128,60 @@ class Lachesis:
             self.highest_events_observed_by_event(node)
             self.lowest_events_which_observe_event(node)
 
-            node_weight = 0
+            for (source, target) in self.local_dag.out_edges(node[0]):
+                target = (target, self.local_dag.nodes.get(target))
+                source = (source, self.local_dag.nodes.get(source))
 
-            # validator and frame pair = vfp
-            for (vfp, highest_seq) in node[1]["highest_events_observed_by_event"]:
-                val = vfp[0]
-                if (
-                    val in node[1]["lowest_events_which_observe_event"]
-                    and vfp in node[1]["lowest_events_which_observe_event"]
-                    and highest_seq
-                    >= node[1]["lowest_events_which_observe_event"][vfp]
-                ):
-                    node_weight += self.validator_weights[val]
+                node_weight = 0
 
-                if node_weight > self.quorum():
-                    if validator in self.root_sets[self.frame]:
-                        self.frame += 1
-                        self.root_sets[self.frame] = set(validator)
-                    else:
-                        self.root_sets[self.frame].add(validator)
-                    self.local_dag.nodes[(validator, timestamp)]["root"] = True
+                # validator and frame pair = vfp
+                for vfp in target[1]["highest_events_observed_by_event"]:
+                    frame = vfp[1]
+                    if frame == self.frame:
+                        val = vfp[0]
+                        highest_seq = target[1]["highest_events_observed_by_event"][
+                            vfp
+                        ]
 
-        # print(self.time, self.root_sets)
+                        """
+                        print(
+                            "node[1][high]",
+                            target[1]["highest_events_observed_by_event"],
+                        )
+                        print("val", val)
+                        print("vfp", vfp)
+                        print("highest_seq", highest_seq)
+                        print(
+                            "node[1][low]",
+                            target[1]["lowest_events_which_observe_event"],
+                        )
+                        """
+                        if (
+                            val in target[1]["lowest_events_which_observe_event"]
+                            and vfp
+                            in target[1]["lowest_events_which_observe_event"][val]
+                            and highest_seq
+                            >= target[1]["lowest_events_which_observe_event"][val][
+                                vfp
+                            ]
+                        ):
+                            node_weight += self.validator_weights[val]
+
+                        print("node_weight", node_weight)
+                        print("quorum", self.quorum())
+
+                        if node_weight > self.quorum():
+                            print("QUUROM")
+
+                            if target[0][0] in self.root_sets[self.frame]:
+                                self.frame += 1
+                                self.root_sets[self.frame] = set(target[0][0])
+                            else:
+                                self.root_sets[self.frame].add(target[0][0])
+
+                            self.local_dag.nodes[target[0]]["root"] = True
+
+        print(self.time, self.root_sets)
 
     """
     def elect_atropos(self):
