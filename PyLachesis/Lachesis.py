@@ -128,6 +128,27 @@ class Lachesis:
             self.highest_events_observed_by_event(node)
             self.lowest_events_which_observe_event(node)
 
+            node_weight = 0
+
+            # validator and frame pair = vfp
+            for (vfp, highest_seq) in node[1]["highest_events_observed_by_event"]:
+                val = vfp[0]
+                if (
+                    val in node[1]["lowest_events_which_observe_event"]
+                    and vfp in node[1]["lowest_events_which_observe_event"]
+                    and highest_seq
+                    >= node[1]["lowest_events_which_observe_event"][vfp]
+                ):
+                    node_weight += self.validator_weights[val]
+
+                if node_weight > self.quorum():
+                    if validator in self.root_sets[self.frame]:
+                        self.frame += 1
+                        self.root_sets[self.frame] = set(validator)
+                    else:
+                        self.root_sets[self.frame].add(validator)
+                    self.local_dag.nodes[(validator, timestamp)]["root"] = True
+
         # print(self.time, self.root_sets)
 
     """
