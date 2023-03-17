@@ -33,7 +33,8 @@ class Lachesis:
 
     def quorum(self):
         return (
-            sum([self.validator_weights[x] for x in self.validator_weights]) * 2 / 3
+            2 * sum([self.validator_weights[x] for x in self.validator_weights]) // 3
+            + 1
         )
 
     def highest_events_observed_by_event(self, node):
@@ -112,6 +113,10 @@ class Lachesis:
                             ] = seq
 
     def check_for_roots(self):
+
+        update_frame = False
+        new_root_set = []
+
         for node in self.timestep_nodes:
             validator, timestamp = node[0]
             if node[1]["predecessors"] == 0:
@@ -123,8 +128,6 @@ class Lachesis:
                 # Assign the root property to the node and store it in local_dag
                 self.local_dag.nodes[(validator, timestamp)]["root"] = True
 
-            # Check if node is in the timestep graph and get its out-edges
-            # print("HAS:", self.local_dag.has_node(node))
             self.highest_events_observed_by_event(node)
             self.lowest_events_which_observe_event(node)
 
@@ -137,25 +140,31 @@ class Lachesis:
                 # validator and frame pair = vfp
                 for vfp in target[1]["highest_events_observed_by_event"]:
                     frame = vfp[1]
-                    if frame == self.frame:
-                        val = vfp[0]
+                    val = vfp[0]
+
+                    current_frame_check = (
+                        True
+                        if frame == self.frame
+                        and target[0][0] in self.root_sets[self.frame]
+                        and val in self.root_sets[self.frame]
+                        else False
+                    )
+
+                    last_frame_check = (
+                        True
+                        if frame == self.frame - 1
+                        and target[0][0] in self.root_sets[self.frame - 1]
+                        and not target[0][0] in self.root_sets[self.frame]
+                        and val in self.root_sets[self.frame - 1]
+                        else False
+                    )
+
+                    if (
+                        current_frame_check or last_frame_check
+                    ) and not self.local_dag.nodes[target[0]]["root"]:
                         highest_seq = target[1]["highest_events_observed_by_event"][
                             vfp
                         ]
-
-                        """
-                        print(
-                            "node[1][high]",
-                            target[1]["highest_events_observed_by_event"],
-                        )
-                        print("val", val)
-                        print("vfp", vfp)
-                        print("highest_seq", highest_seq)
-                        print(
-                            "node[1][low]",
-                            target[1]["lowest_events_which_observe_event"],
-                        )
-                        """
                         if (
                             val in target[1]["lowest_events_which_observe_event"]
                             and vfp
@@ -165,21 +174,42 @@ class Lachesis:
                                 vfp
                             ]
                         ):
+
                             node_weight += self.validator_weights[val]
 
-                        print("node_weight", node_weight)
-                        print("quorum", self.quorum())
+                        if node_weight >= self.quorum():
 
-                        if node_weight > self.quorum():
-                            print("QUUROM")
+                            self.local_dag.nodes[target[0]]["root"] = True
+
+                            """
+                            print("self.frame:", self.frame)
+                            print("val", val)
+                            print("vfp", vfp)
+                            print("current root_set", self.root_sets[self.frame])
+                            print(
+                                "old root_set",
+                                self.root_sets[self.frame - 1]
+                                if self.frame - 1 in self.root_sets
+                                else "",
+                            )
+                            print("node_weight", node_weight)
+                            print("target[0]", target[0])
+                            print("target", target)
+                            print("frame", frame, vfp[1])
+                            print()
+                            """
 
                             if target[0][0] in self.root_sets[self.frame]:
-                                self.frame += 1
-                                self.root_sets[self.frame] = set(target[0][0])
+                                update_frame = True
+                                new_root_set.append(target)
                             else:
                                 self.root_sets[self.frame].add(target[0][0])
 
-                            self.local_dag.nodes[target[0]]["root"] = True
+        if update_frame:
+            self.frame += 1
+            self.root_sets[self.frame] = set()
+            for root in new_root_set:
+                self.root_sets[self.frame].add(root[0][0])
 
         print(self.time, self.root_sets)
 
@@ -221,6 +251,7 @@ def process_graph_by_timesteps(graph):
                         "weight": node[1]["weight"],
                         "lowest_events_which_observe_event": {},
                         "highest_events_observed_by_event": {},
+                        "root": False,
                     },
                 )
             )
@@ -231,6 +262,7 @@ def process_graph_by_timesteps(graph):
                 weight=node[1]["weight"],
                 lowest_events_which_observe_event={},
                 highest_events_observed_by_event={},
+                root=False,
             )
             successors = graph.successors((validator, timestamp))
             for successor in successors:
@@ -251,9 +283,11 @@ def process_graph_by_timesteps(graph):
 
     G = lachesis_state.local_dag
 
-    print("Nodes in the graph:")
-    for node in G.nodes(data=True):
-        print(node)
+    # print("Nodes in the graph:")
+    # for node in G.nodes(data=True):
+    #     print(node[0])
+    #     print(node[1])
+    #     print()
 
     """
     print("Edges in the graph")
@@ -264,5 +298,5 @@ def process_graph_by_timesteps(graph):
 
 if __name__ == "__main__":
     # graph = G
-    G = dag.convert_input_to_DAG("inputs/graphs/graph_10.txt")
+    G = dag.convert_input_to_DAG("inputs/graphs/graph_64.txt")
     process_graph_by_timesteps(G)
