@@ -25,12 +25,7 @@ class Lachesis:
         self.timestep_nodes = []
 
     def quorum(self, frame_number):
-        return (
-            2
-            * sum([self.validator_weights[x] for x in self.root_sets[frame_number]])
-            // 3
-            + 1
-        )
+        return 2 * sum([self.validator_weights[x] for x in self.root_sets[frame_number]]) // 3 + 1
 
     def highest_events_observed_by_event(self, node):
         direct_child = None
@@ -40,9 +35,7 @@ class Lachesis:
                 break
 
         node[1]["highest_events_observed_by_event"] = (
-            direct_child[1]["highest_events_observed_by_event"]
-            if direct_child
-            else {}
+            direct_child[1]["highest_events_observed_by_event"] if direct_child else {}
         )
 
         for (node, target) in self.local_dag.out_edges(node[0]):
@@ -59,9 +52,7 @@ class Lachesis:
                 ):
                     node[1]["highest_events_observed_by_event"][key] = value
 
-            node[1]["highest_events_observed_by_event"][
-                (target[0][0], self.frame)
-            ] = target[1]["predecessors"]
+            node[1]["highest_events_observed_by_event"][(target[0][0], self.frame)] = target[1]["predecessors"]
 
     def lowest_events_which_observe_event(self, node):
         for (source, target) in self.local_dag.out_edges(node[0]):
@@ -71,18 +62,12 @@ class Lachesis:
             # updates the target
             if target[0][0] not in target[1]["lowest_events_which_observe_event"]:
                 target[1]["lowest_events_which_observe_event"][target[0][0]] = {}
-            if (node[0][0], self.frame) not in target[1][
-                "lowest_events_which_observe_event"
-            ][target[0][0]] or node[1]["predecessors"] < target[1][
-                "lowest_events_which_observe_event"
-            ][
-                target[0][0]
-            ][
-                (node[0][0], self.frame)
-            ]:
-                target[1]["lowest_events_which_observe_event"][target[0][0]][
-                    (node[0][0], self.frame)
-                ] = node[1]["predecessors"]
+            if (node[0][0], self.frame) not in target[1]["lowest_events_which_observe_event"][target[0][0]] or node[1][
+                "predecessors"
+            ] < target[1]["lowest_events_which_observe_event"][target[0][0]][(node[0][0], self.frame)]:
+                target[1]["lowest_events_which_observe_event"][target[0][0]][(node[0][0], self.frame)] = node[1][
+                    "predecessors"
+                ]
 
             # updates the source
             t_events = target[1]["lowest_events_which_observe_event"]
@@ -94,18 +79,10 @@ class Lachesis:
                     # seq = sequence number
                     for (vfp, seq) in value.items():
                         if (
-                            vfp
-                            not in source[1]["lowest_events_which_observe_event"][
-                                key
-                            ]
-                            or source[1]["lowest_events_which_observe_event"][key][
-                                vfp
-                            ]
-                            < seq
+                            vfp not in source[1]["lowest_events_which_observe_event"][key]
+                            or source[1]["lowest_events_which_observe_event"][key][vfp] < seq
                         ):
-                            source[1]["lowest_events_which_observe_event"][key][
-                                vfp
-                            ] = seq
+                            source[1]["lowest_events_which_observe_event"][key][vfp] = seq
 
     def expel_cheaters(self, node):
         observed_validators = set()
@@ -150,8 +127,7 @@ class Lachesis:
             """
             if (
                 self.frame > 0
-                and validator
-                not in self.root_sets[self.frame - 1] | self.root_sets[self.frame]
+                and validator not in self.root_sets[self.frame - 1] | self.root_sets[self.frame] | self.cheater_list
             ):
                 self.root_sets[self.frame].add(validator)
 
@@ -187,29 +163,17 @@ class Lachesis:
                         else False
                     )
 
-                    if (
-                        current_frame_check or last_frame_check
-                    ) and not self.local_dag.nodes[target[0]]["root"]:
-                        highest_seq = target[1]["highest_events_observed_by_event"][
-                            vfp
-                        ]
+                    if (current_frame_check or last_frame_check) and not self.local_dag.nodes[target[0]]["root"]:
+                        highest_seq = target[1]["highest_events_observed_by_event"][vfp]
                         if (
                             val in target[1]["lowest_events_which_observe_event"]
-                            and vfp
-                            in target[1]["lowest_events_which_observe_event"][val]
-                            and highest_seq
-                            >= target[1]["lowest_events_which_observe_event"][val][
-                                vfp
-                            ]
+                            and vfp in target[1]["lowest_events_which_observe_event"][val]
+                            and highest_seq >= target[1]["lowest_events_which_observe_event"][val][vfp]
                         ):
 
                             node_weight += self.validator_weights[val]
 
-                        quorum = (
-                            self.quorum(self.frame)
-                            if current_frame_check
-                            else self.quorum(self.frame - 1)
-                        )
+                        quorum = self.quorum(self.frame) if current_frame_check else self.quorum(self.frame - 1)
 
                         if node_weight >= quorum:
 
@@ -262,9 +226,7 @@ class Lachesis:
 # Lachesis on one node
 def process_graph_by_timesteps(graph):
     lachesis_state = Lachesis()
-    nodes = iter(
-        sorted(graph.nodes(data=True), key=lambda node: node[1]["timestamp"])
-    )
+    nodes = iter(sorted(graph.nodes(data=True), key=lambda node: node[1]["timestamp"]))
     node = next(nodes, None)
     lachesis_state.timestep_nodes = []  # nodes at the current timestep
     while True:
