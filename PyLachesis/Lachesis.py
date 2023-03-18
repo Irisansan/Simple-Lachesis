@@ -225,7 +225,6 @@ class Lachesis:
     NOTE: to-do list:
 
     -expel cheaters
-    -dynamic quorum calculations
     -optimize data structures for VFPs/etc. to 
     -write function to graph results
     -elect atropos
