@@ -14,20 +14,19 @@ for filename in glob.glob(graphs_directory):
 class Lachesis:
     # state of Lachesis
     def __init__(self, validator=None):
-        self.block = 0
+        # self.block = 0
         self.frame = 0
-        self.epoch = 0
+        # self.epoch = 0
         self.root_sets = {}  # {root_set[i] => roots} for i in range(frame_numbers)
-        self.cheater_list = []
-        self.atropos_list = []
+        self.cheater_list = set()
+        # self.atropos_list = []
         self.validators = []
-        self.weight = 0
+        # self.weight = 0
         self.validator_weights = {}
         self.adjacency_matrix = []
         self.time = 0
-        self.last_frame_update_time = 0
-        self.global_vector = []
-        self.events_at_step = []
+        # self.last_frame_update_time = 0
+        # self.global_vector = []
         self.local_dag = nx.DiGraph()
         self.timestep_nodes = []
 
@@ -114,6 +113,20 @@ class Lachesis:
                                 vfp
                             ] = seq
 
+    def expel_cheaters(self, node):
+        observed_validators = set()
+        for (source, target) in self.local_dag.out_edges(node[0]):
+            if target[0][0] not in observed_validators:
+                observed_validators.add(target[0][0])
+            else:
+                self.cheater_list.add(target[0][0])
+                # self.root_sets[self.frame].remove(target[0][0])
+                remaining_frames = self.frame
+                while remaining_frames >= 0:
+                    if target[0][0] in self.root_sets[remaining_frames]:
+                        self.root_sets[remaining_frames].remove(target[0][0])
+                    remaining_frames -= 1
+
     def check_for_roots(self):
 
         update_frame = False
@@ -130,6 +143,7 @@ class Lachesis:
                 # Assign the root property to the node and store it in local_dag
                 self.local_dag.nodes[(validator, timestamp)]["root"] = True
 
+            self.expel_cheaters(node)
             self.highest_events_observed_by_event(node)
             self.lowest_events_which_observe_event(node)
 
@@ -224,8 +238,7 @@ class Lachesis:
     """
     NOTE: to-do list:
 
-    -expel cheaters
-    -optimize data structures for VFPs/etc. to 
+    -optimize data structures for VFPs/etc. to include another nested dictionary
     -write function to graph results
     -elect atropos
     -communicate with others nodes
@@ -262,6 +275,7 @@ def process_graph_by_timesteps(graph):
                         "lowest_events_which_observe_event": {},
                         "highest_events_observed_by_event": {},
                         "root": False,
+                        "cheater": False,
                     },
                 )
             )
@@ -273,6 +287,7 @@ def process_graph_by_timesteps(graph):
                 lowest_events_which_observe_event={},
                 highest_events_observed_by_event={},
                 root=False,
+                cheater=False,
             )
             successors = graph.successors((validator, timestamp))
             for successor in successors:
