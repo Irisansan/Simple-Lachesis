@@ -31,9 +31,11 @@ class Lachesis:
         self.local_dag = nx.DiGraph()
         self.timestep_nodes = []
 
-    def quorum(self):
+    def quorum(self, frame_number):
         return (
-            2 * sum([self.validator_weights[x] for x in self.validator_weights]) // 3
+            2
+            * sum([self.validator_weights[x] for x in self.root_sets[frame_number]])
+            // 3
             + 1
         )
 
@@ -177,7 +179,13 @@ class Lachesis:
 
                             node_weight += self.validator_weights[val]
 
-                        if node_weight >= self.quorum():
+                        quorum = (
+                            self.quorum(self.frame)
+                            if current_frame_check
+                            else self.quorum(self.frame - 1)
+                        )
+
+                        if node_weight >= quorum:
 
                             self.local_dag.nodes[target[0]]["root"] = True
 
@@ -214,11 +222,14 @@ class Lachesis:
         print(self.time, self.root_sets)
 
     """
-    def elect_atropos(self):
+    NOTE: to-do list:
 
-    def forkless_cause(self):
-    
-    def communicate_with_neighbors(self):
+    -expel cheaters
+    -dynamic quorum calculations
+    -optimize data structures for VFPs/etc. to 
+    -write function to graph results
+    -elect atropos
+    -communicate with others nodes
     """
 
 
