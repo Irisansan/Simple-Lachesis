@@ -17,7 +17,7 @@ class Lachesis:
         self.frame = 0
         self.root_sets = {}  # {root_set[i] => roots} for i in range(frame_numbers)
         self.cheater_list = set()
-        self.validators = []
+        self.validators = set()
         self.validator_weights = {}
         self.adjacency_matrix = []
         self.time = 0
@@ -44,6 +44,8 @@ class Lachesis:
             target = (target, self.local_dag.nodes.get(target))
 
             t_events = target[1]["highest_events_observed_by_event"]
+            # efficency boost as all older nodes are irrelevant
+            t_events = {k: v for (k, v) in t_events.items() if k[1] >= self.frame - 1}
             for (key, value) in t_events.items():
 
                 if (
@@ -71,6 +73,21 @@ class Lachesis:
 
             # updates the source
             t_events = target[1]["lowest_events_which_observe_event"]
+            """
+            Efficiency boost instead of using another nested dictionary
+            to convert validator => (validator, frame) => sequence to
+            validator => frame => validator => sequence, as this makes
+            the code very hard to read and debug:
+
+            -compute last frame at which all validators have been present
+            -ensure that nodes in subsequent frames drop data of those finalized frames
+            """
+            i = self.frame
+            while i > 0 and len(self.root_sets[i]) != len(self.validators):
+                i -= 1
+
+            t_events = {validator: vfp for (validator, vfp) in t_events.items() if list(vfp.keys())[0][1] >= i}
+
             for (key, value) in t_events.copy().items():
                 if key not in source[1]["lowest_events_which_observe_event"]:
                     source[1]["lowest_events_which_observe_event"][key] = value
@@ -91,6 +108,8 @@ class Lachesis:
                 observed_validators.add(target[0][0])
             else:
                 self.cheater_list.add(target[0][0])
+                if target[0][0] in self.validators:
+                    self.validators.remove(target[0][0])
                 # self.root_sets[self.frame].remove(target[0][0])
                 remaining_frames = self.frame
                 while remaining_frames >= 0:
@@ -179,24 +198,6 @@ class Lachesis:
 
                             self.local_dag.nodes[target[0]]["root"] = True
 
-                            """
-                            print("self.frame:", self.frame)
-                            print("val", val)
-                            print("vfp", vfp)
-                            print("current root_set", self.root_sets[self.frame])
-                            print(
-                                "old root_set",
-                                self.root_sets[self.frame - 1]
-                                if self.frame - 1 in self.root_sets
-                                else "",
-                            )
-                            print("node_weight", node_weight)
-                            print("target[0]", target[0])
-                            print("target", target)
-                            print("frame", frame, vfp[1])
-                            print()
-                            """
-
                             if target[0][0] in self.root_sets[self.frame]:
                                 update_frame = True
                                 new_root_set.append(target)
@@ -214,7 +215,6 @@ class Lachesis:
     """
     NOTE: to-do list:
 
-    -optimize data structures for VFPs/etc. to include another nested dictionary
     -write function to graph results
     -elect atropos
     -communicate with others nodes
@@ -234,8 +234,8 @@ def process_graph_by_timesteps(graph):
             break
         validator = node[0][0]
         timestamp = node[0][1]
-        if validator not in lachesis_state.validators:
-            lachesis_state.validators.append(validator)
+        if validator not in lachesis_state.validators and validator not in lachesis_state.cheater_list:
+            lachesis_state.validators.add(validator)
             lachesis_state.validator_weights[validator] = node[1]["weight"]
         while timestamp == lachesis_state.time:
             # add node to graph of current nodes and local DAG
@@ -271,8 +271,8 @@ def process_graph_by_timesteps(graph):
                 break
             validator = node[0][0]
             timestamp = node[0][1]
-            if validator not in lachesis_state.validators:
-                lachesis_state.validators.append(validator)
+            if validator not in lachesis_state.validators and validator not in lachesis_state.cheater_list:
+                lachesis_state.validators.add(validator)
                 lachesis_state.validator_weights[validator] = node[1]["weight"]
         lachesis_state.check_for_roots()
         # print(lachesis_state.timestep_nodes)
