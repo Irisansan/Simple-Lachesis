@@ -14,19 +14,13 @@ for filename in glob.glob(graphs_directory):
 class Lachesis:
     # state of Lachesis
     def __init__(self, validator=None):
-        # self.block = 0
         self.frame = 0
-        # self.epoch = 0
         self.root_sets = {}  # {root_set[i] => roots} for i in range(frame_numbers)
         self.cheater_list = set()
-        # self.atropos_list = []
         self.validators = []
-        # self.weight = 0
         self.validator_weights = {}
         self.adjacency_matrix = []
         self.time = 0
-        # self.last_frame_update_time = 0
-        # self.global_vector = []
         self.local_dag = nx.DiGraph()
         self.timestep_nodes = []
 
@@ -134,6 +128,7 @@ class Lachesis:
 
         for node in self.timestep_nodes:
             validator, timestamp = node[0]
+
             if node[1]["predecessors"] == 0:
                 if self.frame not in self.root_sets:
                     self.root_sets[self.frame] = set(validator)
@@ -142,6 +137,23 @@ class Lachesis:
 
                 # Assign the root property to the node and store it in local_dag
                 self.local_dag.nodes[(validator, timestamp)]["root"] = True
+
+            """
+            #NOTE: The following is an assumption
+
+            The strict definition of a root states that it is either:
+            - The first event of a validator
+            - An event, which is forkless caused by the previous frame roots' quorum
+
+            This function assumes a validator is allowed to be re-introduced if it 
+            was "offline" for a few frames
+            """
+            if (
+                self.frame > 0
+                and validator
+                not in self.root_sets[self.frame - 1] | self.root_sets[self.frame]
+            ):
+                self.root_sets[self.frame].add(validator)
 
             self.expel_cheaters(node)
             self.highest_events_observed_by_event(node)
