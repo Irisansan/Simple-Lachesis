@@ -57,6 +57,19 @@ class Lachesis:
             node[1]["highest_events_observed_by_event"][(target[0][0], self.frame)] = target[1]["predecessors"]
 
     def lowest_events_which_observe_event(self, node):
+        """
+        Efficiency boost instead of using another nested dictionary
+        to convert validator => (validator, frame) => sequence to
+        validator => frame => validator => sequence, as this makes
+        the code very hard to read and debug:
+
+        -compute last frame at which all validators have been present
+        -ensure that nodes in subsequent frames drop data of those finalized frames
+        """
+        i = self.frame
+        while i > 0 and len(self.root_sets[i]) != len(self.validators):
+            i -= 1
+
         for (source, target) in self.local_dag.out_edges(node[0]):
             target = (target, self.local_dag.nodes.get(target))
             source = (source, self.local_dag.nodes.get(source))
@@ -73,20 +86,6 @@ class Lachesis:
 
             # updates the source
             t_events = target[1]["lowest_events_which_observe_event"]
-            """
-            Efficiency boost instead of using another nested dictionary
-            to convert validator => (validator, frame) => sequence to
-            validator => frame => validator => sequence, as this makes
-            the code very hard to read and debug:
-
-            -compute last frame at which all validators have been present
-            -ensure that nodes in subsequent frames drop data of those finalized frames
-            """
-            i = self.frame
-            while i > 0 and len(self.root_sets[i]) != len(self.validators):
-                i -= 1
-
-            t_events = {validator: vfp for (validator, vfp) in t_events.items() if list(vfp.keys())[0][1] >= i}
 
             for (key, value) in t_events.copy().items():
                 if key not in source[1]["lowest_events_which_observe_event"]:
