@@ -15,7 +15,8 @@ class Lachesis:
     # state of Lachesis
     def __init__(self, validator=None):
         self.frame = 0
-        self.root_sets = {}  # {root_set[i] => roots} for i in range(frame_numbers)
+        self.root_set_validators = {}  # {root_set[i] => roots} for i in range(frame_numbers)
+        self.root_set_nodes = {}
         self.cheater_list = set()
         self.validators = set()
         self.validator_weights = {}
@@ -25,7 +26,7 @@ class Lachesis:
         self.timestep_nodes = []
 
     def quorum(self, frame_number):
-        return 2 * sum([self.validator_weights[x] for x in self.root_sets[frame_number]]) // 3 + 1
+        return 2 * sum([self.validator_weights[x] for x in self.root_set_validators[frame_number]]) // 3 + 1
 
     def highest_events_observed_by_event(self, node):
         direct_child = None
@@ -67,7 +68,7 @@ class Lachesis:
         -ensure that nodes in subsequent frames drop data of those finalized frames
         """
         i = self.frame
-        while i > 0 and len(self.root_sets[i]) != len(self.validators):
+        while i > 0 and len(self.root_set_validators[i]) != len(self.validators):
             i -= 1
 
         for (source, target) in self.local_dag.out_edges(node[0]):
@@ -108,17 +109,22 @@ class Lachesis:
     def expel_cheaters(self, node):
         observed_validators = set()
         for (source, target) in self.local_dag.out_edges(node[0]):
-            if target[0][0] not in observed_validators:
-                observed_validators.add(target[0][0])
+            if target[0] not in observed_validators:
+                observed_validators.add(target[0])
             else:
-                self.cheater_list.add(target[0][0])
-                if target[0][0] in self.validators:
-                    self.validators.remove(target[0][0])
-                # self.root_sets[self.frame].remove(target[0][0])
+                self.cheater_list.add(target[0])
+                if target[0] in self.validators:
+                    self.validators.remove(target[0])
+                # self.root_set_validators[self.frame].remove(target[0][0])
                 remaining_frames = self.frame
                 while remaining_frames >= 0:
-                    if target[0][0] in self.root_sets[remaining_frames]:
-                        self.root_sets[remaining_frames].remove(target[0][0])
+                    if target[0] in self.root_set_validators[remaining_frames]:
+                        self.root_set_validators[remaining_frames].remove(target[0])
+
+                    self.root_set_nodes[remaining_frames] = {
+                        (x, y) for (x, y) in self.root_set_nodes[remaining_frames] if x != target[0]
+                    }
+
                     remaining_frames -= 1
 
     def check_for_roots(self):
@@ -130,10 +136,13 @@ class Lachesis:
             validator, timestamp = node[0]
 
             if node[1]["predecessors"] == 0:
-                if self.frame not in self.root_sets:
-                    self.root_sets[self.frame] = set(validator)
+                if self.frame not in self.root_set_validators:
+                    self.root_set_validators[self.frame] = set(validator)
+                    self.root_set_nodes[self.frame] = set()
+                    self.root_set_nodes[self.frame].add(node[0])
                 else:
-                    self.root_sets[self.frame].add(validator)
+                    self.root_set_validators[self.frame].add(validator)
+                    self.root_set_nodes[self.frame].add(node[0])
 
                 # Assign the root property to the node and store it in local_dag
                 self.local_dag.nodes[(validator, timestamp)]["root"] = True
@@ -150,9 +159,13 @@ class Lachesis:
             """
             if (
                 self.frame > 0
-                and validator not in self.root_sets[self.frame - 1] | self.root_sets[self.frame] | self.cheater_list
+                and validator
+                not in self.root_set_validators[self.frame - 1]
+                | self.root_set_validators[self.frame]
+                | self.cheater_list
             ):
-                self.root_sets[self.frame].add(validator)
+                self.root_set_validators[self.frame].add(validator)
+                self.root_set_nodes[self.frame].add(node[0])
 
             self.expel_cheaters(node)
             self.highest_events_observed_by_event(node)
@@ -172,17 +185,17 @@ class Lachesis:
                     current_frame_check = (
                         True
                         if frame == self.frame
-                        and target[0][0] in self.root_sets[self.frame]
-                        and val in self.root_sets[self.frame]
+                        and target[0][0] in self.root_set_validators[self.frame]
+                        and val in self.root_set_validators[self.frame]
                         else False
                     )
 
                     last_frame_check = (
                         True
                         if frame == self.frame - 1
-                        and target[0][0] in self.root_sets[self.frame - 1]
-                        and not target[0][0] in self.root_sets[self.frame]
-                        and val in self.root_sets[self.frame - 1]
+                        and target[0][0] in self.root_set_validators[self.frame - 1]
+                        and not target[0][0] in self.root_set_validators[self.frame]
+                        and val in self.root_set_validators[self.frame - 1]
                         else False
                     )
 
@@ -202,19 +215,22 @@ class Lachesis:
 
                             self.local_dag.nodes[target[0]]["root"] = True
 
-                            if target[0][0] in self.root_sets[self.frame]:
+                            if target[0][0] in self.root_set_validators[self.frame]:
                                 update_frame = True
                                 new_root_set.append(target)
                             else:
-                                self.root_sets[self.frame].add(target[0][0])
+                                self.root_set_validators[self.frame].add(target[0][0])
+                                self.root_set_nodes[self.frame].add(target[0])
 
         if update_frame:
             self.frame += 1
-            self.root_sets[self.frame] = set()
+            self.root_set_validators[self.frame] = set()
+            self.root_set_nodes[self.frame] = set()
             for root in new_root_set:
-                self.root_sets[self.frame].add(root[0][0])
+                self.root_set_validators[self.frame].add(root[0][0])
+                self.root_set_nodes[self.frame].add(root[0])
 
-        print(self.time, self.root_sets)
+        print(self.time, self.root_set_validators)
 
     """
     NOTE: to-do list:
