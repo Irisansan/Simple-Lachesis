@@ -17,6 +17,8 @@ class Lachesis:
         self.frame = 0
         self.root_set_validators = {}  # {root_set[i] => roots} for i in range(frame_numbers)
         self.root_set_nodes = {}
+        self.election_votes = {}
+        self.frame_to_decide = 0
         self.cheater_list = set()
         self.validators = set()
         self.validator_weights = {}
@@ -127,10 +129,11 @@ class Lachesis:
 
                     remaining_frames -= 1
 
-    def forklessCaused(self, validator, candidate_node, frame):
+    def forkless_caused(self, validator, candidate_node, frame):
 
         if (
             validator not in candidate_node[1]["lowest_events_which_observe_event"]
+            or (validator, frame) not in candidate_node[1]["highest_events_observed_by_event"]
             or (validator, frame) not in candidate_node[1]["lowest_events_which_observe_event"][validator]
         ):
             return False
@@ -141,6 +144,23 @@ class Lachesis:
         # the no fork condition is implicit as cheaters are expelled
         if a >= b and b != 0:
             return True
+
+    def elect_atropos(self):
+
+        for r in range(self.frame_to_decide + 1, self.frame + 1):
+            election_round = r - self.frame_to_decide
+            candidates = self.root_set_nodes[self.frame_to_decide]
+
+            if election_round == 1:
+                new_roots = self.root_set_nodes[r]
+                for root in new_roots:
+                    for candidate in candidates:
+                        candidate_node = (candidate, self.local_dag.nodes.get(candidate))
+                        # vote yes for the candidate if newRoot forkless causes it
+                        self.election_votes[(root, candidate)] = {
+                            "yes": self.forkless_caused(root[0], candidate_node, self.frame_to_decide),
+                            "decided": False,
+                        }
 
     def check_for_roots(self):
 
@@ -217,7 +237,7 @@ class Lachesis:
 
                     if (current_frame_check or last_frame_check) and not self.local_dag.nodes[target[0]]["root"]:
 
-                        if self.forklessCaused(val, target, frame):
+                        if self.forkless_caused(val, target, frame):
                             if current_frame_check:
                                 node_weight_current_frame += self.validator_weights[val]
                             else:
@@ -313,6 +333,7 @@ def process_graph_by_timesteps(graph):
                 lachesis_state.validators.add(validator)
                 lachesis_state.validator_weights[validator] = node[1]["weight"]
         lachesis_state.check_for_roots()
+        lachesis_state.elect_atropos()
         # print(lachesis_state.timestep_nodes)
         lachesis_state.time += 1
         print()
