@@ -127,6 +127,21 @@ class Lachesis:
 
                     remaining_frames -= 1
 
+    def forklessCaused(self, validator, candidate_node, frame):
+
+        if (
+            validator not in candidate_node[1]["lowest_events_which_observe_event"]
+            or (validator, frame) not in candidate_node[1]["lowest_events_which_observe_event"][validator]
+        ):
+            return False
+
+        a = candidate_node[1]["highest_events_observed_by_event"][(validator, frame)]
+        b = candidate_node[1]["lowest_events_which_observe_event"][validator][(validator, frame)]
+
+        # the no fork condition is implicit as cheaters are expelled
+        if a >= b and b != 0:
+            return True
+
     def check_for_roots(self):
 
         update_frame = False
@@ -175,7 +190,8 @@ class Lachesis:
                 target = (target, self.local_dag.nodes.get(target))
                 source = (source, self.local_dag.nodes.get(source))
 
-                node_weight = 0
+                node_weight_current_frame = 0
+                node_weight_last_frame = 0
 
                 # validator and frame pair = vfp
                 for vfp in target[1]["highest_events_observed_by_event"]:
@@ -200,18 +216,20 @@ class Lachesis:
                     )
 
                     if (current_frame_check or last_frame_check) and not self.local_dag.nodes[target[0]]["root"]:
-                        highest_seq = target[1]["highest_events_observed_by_event"][vfp]
-                        if (
-                            val in target[1]["lowest_events_which_observe_event"]
-                            and vfp in target[1]["lowest_events_which_observe_event"][val]
-                            and highest_seq >= target[1]["lowest_events_which_observe_event"][val][vfp]
-                        ):
 
-                            node_weight += self.validator_weights[val]
+                        if self.forklessCaused(val, target, frame):
+                            if current_frame_check:
+                                node_weight_current_frame += self.validator_weights[val]
+                            else:
+                                node_weight_last_frame += self.validator_weights[val]
 
-                        quorum = self.quorum(self.frame) if current_frame_check else self.quorum(self.frame - 1)
+                        quorum = (
+                            node_weight_last_frame >= self.quorum(self.frame - 1)
+                            if last_frame_check
+                            else node_weight_current_frame >= self.quorum(self.frame)
+                        )
 
-                        if node_weight >= quorum:
+                        if quorum:
 
                             self.local_dag.nodes[target[0]]["root"] = True
 
