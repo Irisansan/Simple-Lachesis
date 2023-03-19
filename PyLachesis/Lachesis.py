@@ -87,7 +87,12 @@ class Lachesis:
             # updates the source
             t_events = target[1]["lowest_events_which_observe_event"]
 
-            for (key, value) in t_events.copy().items():
+            filtered_t_events = {
+                validator: {vfp: sequence for vfp, sequence in frame_dict.items() if vfp[1] >= i}
+                for validator, frame_dict in t_events.items()
+            }
+
+            for (key, value) in filtered_t_events.items():
                 if key not in source[1]["lowest_events_which_observe_event"]:
                     source[1]["lowest_events_which_observe_event"][key] = value
                 else:
