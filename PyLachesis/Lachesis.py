@@ -15,7 +15,7 @@ class Lachesis:
     # state of Lachesis
     def __init__(self, validator=None):
         self.frame = 0
-        self.root_set_validators = {}  # {root_set[i] => roots} for i in range(frame_numbers)
+        self.root_set_validators = {}
         self.root_set_nodes = {}
         self.election_votes = {}
         self.frame_to_decide = 0
@@ -189,6 +189,7 @@ class Lachesis:
                                 votes_against += self.validator_weights[previous_root[0]]
 
                         quorum = self.quorum(r)
+
                         vote = {
                             "decided": votes_for >= quorum or votes_against >= quorum,
                             "vote": votes_for >= votes_against,
@@ -203,7 +204,6 @@ class Lachesis:
         if self.frame_to_decide in self.atropos_roots:
             self.frame_to_decide += 1
 
-        print(self.decided_roots)
         print("atropos roots", self.atropos_roots)
         print("frame to decide:", self.frame_to_decide)
         # print(self.election_votes)
@@ -322,7 +322,6 @@ class Lachesis:
     """
     NOTE: to-do list:
 
-    -elect atropos - round 2
     -write function to graph results
     -communicate with others nodes
     """
@@ -383,7 +382,6 @@ def process_graph_by_timesteps(graph):
                 lachesis_state.validator_weights[validator] = node[1]["weight"]
         lachesis_state.check_for_roots()
         lachesis_state.elect_atropos()
-        # print(lachesis_state.timestep_nodes)
         lachesis_state.time += 1
         print()
         lachesis_state.timestep_nodes = []
