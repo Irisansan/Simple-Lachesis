@@ -162,7 +162,9 @@ class Lachesis:
                         if (atropos_candidate, new_root) not in self.election_votes:
                             # vote yes for the atropos candidate if candidate forkless-causes new root
                             self.election_votes[(atropos_candidate, new_root)] = {
-                                "vote": True if ((atropos_candidate, new_root)) in self.forkless_cause_set else False,
+                                "vote": True
+                                if (((atropos_candidate[0], self.frame_to_decide), new_root)) in self.forkless_cause_set
+                                else False,
                                 "decided": False,
                             }
 
@@ -186,7 +188,7 @@ class Lachesis:
                             else:
                                 votes_against += self.validator_weights[previous_root[0]]
 
-                        quorum = self.quorum(r - 1)
+                        quorum = self.quorum(r)
                         vote = {
                             "decided": votes_for >= quorum or votes_against >= quorum,
                             "vote": votes_for >= votes_against,
@@ -203,6 +205,7 @@ class Lachesis:
 
         print(self.decided_roots)
         print("atropos roots", self.atropos_roots)
+        print("frame to decide:", self.frame_to_decide)
         # print(self.election_votes)
 
         # print(self.election_votes)
