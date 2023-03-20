@@ -27,6 +27,8 @@ class Lachesis:
         self.local_dag = nx.DiGraph()
         self.timestep_nodes = []
         self.forkless_cause_set = set()
+        self.decided_roots = {}
+        self.atropos_roots = {}
 
     def quorum(self, frame_number):
         return 2 * sum([self.validator_weights[x] for x in self.root_set_validators[frame_number]]) // 3 + 1
@@ -149,21 +151,59 @@ class Lachesis:
 
     def elect_atropos(self):
 
-        for r in range(self.frame_to_decide + 1, self.frame + 1):
+        for r in range(1 + self.frame_to_decide, self.frame + 1):
             election_round = r - self.frame_to_decide
-            candidates = self.root_set_nodes[self.frame_to_decide]
+            atropos_candidates = self.root_set_nodes[self.frame_to_decide]
+            new_roots = self.root_set_nodes[r]
 
             if election_round == 1:
-                new_roots = self.root_set_nodes[r]
-                for root in new_roots:
-                    root_node = (root, self.local_dag.nodes.get(root))
-                    for candidate in candidates:
-                        candidate_node = (candidate, self.local_dag.nodes.get(candidate))
-                        # vote yes for the atropos candidate if candidate forkless-causes new root
-                        self.election_votes[(candidate_node[0], root_node[0])] = {
-                            "yes": True if ((candidate_node[0], root_node[0])) in self.forkless_cause_set else False,
-                            "decided": False,
+                for new_root in new_roots:
+                    for atropos_candidate in atropos_candidates:
+                        if (atropos_candidate, new_root) not in self.election_votes:
+                            # vote yes for the atropos candidate if candidate forkless-causes new root
+                            self.election_votes[(atropos_candidate, new_root)] = {
+                                "vote": True if ((atropos_candidate, new_root)) in self.forkless_cause_set else False,
+                                "decided": False,
+                            }
+
+            elif election_round > 1:
+                for new_root in new_roots:
+                    for atropos_candidate in atropos_candidates:
+
+                        if atropos_candidate in self.decided_roots:  # skip already decided
+                            continue
+
+                        votes_for, votes_against = 0, 0
+
+                        for previous_root in self.root_set_nodes[r - 1]:
+                            previous_vote = (
+                                self.election_votes[(atropos_candidate, previous_root)]
+                                if (atropos_candidate, previous_root) in self.election_votes
+                                else None
+                            )
+                            if previous_vote and previous_vote["vote"]:
+                                votes_for += self.validator_weights[previous_root[0]]
+                            else:
+                                votes_against += self.validator_weights[previous_root[0]]
+
+                        quorum = self.quorum(r - 1)
+                        vote = {
+                            "decided": votes_for >= quorum or votes_against >= quorum,
+                            "vote": votes_for >= votes_against,
                         }
+                        if vote["decided"]:
+                            self.decided_roots[atropos_candidate] = vote["vote"]
+                        if vote["vote"]:
+                            self.atropos_roots[self.frame_to_decide] = atropos_candidate
+
+                        self.election_votes[(new_root), (atropos_candidate)] = vote
+
+        if self.frame_to_decide in self.atropos_roots:
+            self.frame_to_decide += 1
+
+        print(self.decided_roots)
+        print("atropos roots", self.atropos_roots)
+        # print(self.election_votes)
 
         # print(self.election_votes)
         # print("forkless cause set", self.forkless_cause_set)
@@ -279,8 +319,8 @@ class Lachesis:
     """
     NOTE: to-do list:
 
+    -elect atropos - round 2
     -write function to graph results
-    -elect atropos
     -communicate with others nodes
     """
 
@@ -362,5 +402,5 @@ def process_graph_by_timesteps(graph):
 
 if __name__ == "__main__":
     # graph = G
-    G = dag.convert_input_to_DAG("inputs/graphs/graph_10.txt")
+    G = dag.convert_input_to_DAG("inputs/graphs/graph_64.txt")
     process_graph_by_timesteps(G)
