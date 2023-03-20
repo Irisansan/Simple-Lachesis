@@ -1,6 +1,7 @@
-import DAG as dag
+import input_to_dag as dag
 import glob
 import networkx as nx
+from graph_results import graph_results
 
 # iterating over all graphs as part of testing, etc.
 """
@@ -204,8 +205,8 @@ class Lachesis:
         if self.frame_to_decide in self.atropos_roots:
             self.frame_to_decide += 1
 
-        print("atropos roots", self.atropos_roots)
-        print("frame to decide:", self.frame_to_decide)
+        # print("atropos roots", self.atropos_roots)
+        # print("frame to decide:", self.frame_to_decide)
         # print(self.election_votes)
 
         # print(self.election_votes)
@@ -317,12 +318,15 @@ class Lachesis:
                 self.root_set_validators[self.frame].add(root[0][0])
                 self.root_set_nodes[self.frame].add(root[0])
 
-        print(self.time, self.root_set_validators)
+        # print(self.time, self.root_set_validators)
 
     """
     NOTE: to-do list:
 
+    -make atropos election deterministic
     -write function to graph results
+    -correct test graphs to only communicate to neighbors - form adjacency
+     matrices, etc.
     -communicate with others nodes
     """
 
@@ -383,10 +387,13 @@ def process_graph_by_timesteps(graph):
         lachesis_state.check_for_roots()
         lachesis_state.elect_atropos()
         lachesis_state.time += 1
-        print()
         lachesis_state.timestep_nodes = []
 
     G = lachesis_state.local_dag
+    graph_results(G, lachesis_state.cheater_list, lachesis_state.root_set_nodes, lachesis_state.atropos_roots)
+
+    print("root set nodes:", lachesis_state.root_set_nodes)
+    print("atropos roots:", lachesis_state.atropos_roots)
 
     # print("Nodes in the graph:")
     # for node in G.nodes(data=True):
@@ -403,5 +410,5 @@ def process_graph_by_timesteps(graph):
 
 if __name__ == "__main__":
     # graph = G
-    G = dag.convert_input_to_DAG("inputs/graphs/graph_64.txt")
+    G = dag.convert_input_to_DAG("inputs/graphs/graph_75.txt")
     process_graph_by_timesteps(G)
