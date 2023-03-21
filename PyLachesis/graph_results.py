@@ -2,7 +2,7 @@ import networkx as nx
 import matplotlib.pyplot as plt
 
 
-def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
+def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots, output_filename):
     colors = ["orange", "yellow", "blue", "cyan", "purple"]
     cheater_list = [ord(x) - 65 for x in cheater_list]
     root_set_nodes_new = {}
@@ -19,7 +19,8 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
             num_levels = node[1]
 
     atropos_roots_new = {}
-    max_decided_frame = max([root for root in atropos_roots])
+    max_decided_frame = max([root for root in atropos_roots]) if atropos_roots else 0
+
     for key, value in atropos_roots.items():
         atropos_roots_new[value] = key
 
@@ -113,12 +114,10 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
 
     # Adjust figure parameters
     plt.tight_layout()
-    save_plot = True
 
     # Save plot as a PDF
-    if save_plot:
-        manager = plt.get_current_fig_manager()
-        manager.full_screen_toggle()
-        fig.savefig("results.pdf", format="pdf", dpi=300, bbox_inches="tight")
+    manager = plt.get_current_fig_manager()
+    manager.full_screen_toggle()
+    fig.savefig(output_filename + ".pdf", format="pdf", dpi=300, bbox_inches="tight")
 
     plt.close()
