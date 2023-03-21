@@ -13,38 +13,32 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
         for v in values:
             root_set_nodes_new[(v[0], v[1])] = key
 
-    print(root_set_nodes_new)
-
     num_levels = 0
     num_nodes = 0
     for node in digraph.nodes:
-        print(node, ord(node[0]) - 65, node[1])
         if ord(node[0]) - 65 > num_nodes:
             num_nodes = ord(node[0]) - 65
         if node[1] > num_levels:
             num_levels = node[1]
 
-    print(atropos_roots)
-
     atropos_roots_new = {}
     for key, value in atropos_roots.items():
         atropos_roots_new[value] = key
 
-    print(root_set_nodes_new)
-    print(atropos_roots_new)
-
     node_colors = {}
 
+    bad_nodes = []
     for node in digraph.nodes:
-        print("cheater check", cheater_list, node)
         if ord(node[0]) - 65 in cheater_list:
-            node_colors[node] = "red"
+            bad_nodes.append(node)
         else:
-            node_colors[node] = "gray"
+            node_colors[node] = "#666699"
         if node in root_set_nodes_new:
             node_colors[node] = colors[root_set_nodes_new[node] % 5]
         if node in atropos_roots_new:
-            node_colors[node] = "green"
+            node_colors[node] = "#66ff99"
+
+    digraph.remove_nodes_from(bad_nodes)
 
     figsize = [20, 10]
     # Scale the figure size proportionally to the number of levels and nodes
@@ -62,11 +56,21 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
             node = (chr(i + 65), j)
             pos[node] = (j, i)
 
-    print(pos[("B", 4)])
+    labels = {
+        (chr(i + 65), j): (chr(i + 65), j, digraph.nodes.get((chr(i + 65), j))["predecessors"])
+        for i in range(num_nodes + 1)
+        for j in range(num_levels + 1)
+        if (chr(i + 65), j) in digraph.nodes
+    }
+    print("labels", labels)
 
     nx.draw(
         digraph,
         pos,
+        with_labels=True,
+        labels={
+            val: r"$\mathrm{{{}}}_{{{},{}}}$".format(labels[val][0], labels[val][1], labels[val][2]) for val in labels
+        },
         font_family="serif",
         font_size=9,
         node_size=900,
@@ -76,4 +80,12 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
 
     # Adjust figure parameters
     plt.tight_layout()
-    plt.show()
+    save_plot = True
+
+    # Save plot as a PDF
+    if save_plot:
+        manager = plt.get_current_fig_manager()
+        manager.full_screen_toggle()
+        fig.savefig("results.pdf", format="pdf", dpi=300, bbox_inches="tight")
+
+    plt.close()
