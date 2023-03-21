@@ -410,5 +410,5 @@ def process_graph_by_timesteps(graph):
 
 if __name__ == "__main__":
     # graph = G
-    G = dag.convert_input_to_DAG("inputs/graphs/graph_75.txt")
+    G = dag.convert_input_to_DAG("inputs/graphs/graph_64.txt")
     process_graph_by_timesteps(G)

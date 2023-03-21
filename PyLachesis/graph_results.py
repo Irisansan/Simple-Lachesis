@@ -36,14 +36,15 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
     node_colors = {}
 
     for node in digraph.nodes:
-        if node[0] in cheater_list:
+        print("cheater check", cheater_list, node)
+        if ord(node[0]) - 65 in cheater_list:
             node_colors[node] = "red"
         else:
             node_colors[node] = "gray"
         if node in root_set_nodes_new:
             node_colors[node] = colors[root_set_nodes_new[node] % 5]
         if node in atropos_roots_new:
-            node_colors[node] = colors[atropos_roots_new[node] % 5]
+            node_colors[node] = "green"
 
     figsize = [20, 10]
     # Scale the figure size proportionally to the number of levels and nodes
@@ -69,6 +70,7 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
         font_family="serif",
         font_size=9,
         node_size=900,
+        node_color=[node_colors.get(node, node_colors[node]) for node in digraph.nodes()],
         font_weight="bold",
     )
 
