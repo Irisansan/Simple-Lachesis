@@ -19,13 +19,17 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots, output_f
             num_levels = node[1]
 
     atropos_roots_new = {}
-    max_decided_frame = max([root for root in atropos_roots]) if atropos_roots else 0
+    max_decided_frame = max([root for root in atropos_roots]) if atropos_roots else -1
 
     for key, value in atropos_roots.items():
         atropos_roots_new[value] = key
 
+    print(atropos_roots_new)
     node_colors = {}
     node_frames = {}
+
+    # different shades of green
+    atropos_colors = ["#00cc44", "#66ff99"]
 
     bad_nodes = []
     for node in digraph.nodes:
@@ -38,7 +42,7 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots, output_f
             node_colors[node] = colors[root_set_nodes_new[node] % 5]
             node_frames[node] = digraph.nodes.get(node)["frame"]
         if node in atropos_roots_new:
-            node_colors[node] = "#66ff99"
+            node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
             node_frames[node] = digraph.nodes.get(node)["frame"]
 
     digraph.remove_nodes_from(bad_nodes)
@@ -78,9 +82,9 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots, output_f
 
         plt.gca().add_patch(rect)
         rect_x, rect_y = rect.get_xy()
-        frame_text = r"$\mathrm{{block}}\ {}$".format(frame)
-        if frame > max_decided_frame:
-            frame_text = r"$\mathrm{{frame}}\ {}$".format(frame)
+        frame_text = r"$\mathrm{{frame}}\ {}$".format(frame)
+        if frame <= max_decided_frame:
+            frame_text = r"$\mathrm{{block}}\ {}$".format(frame)
         plt.text(
             rect_x + 0.2,
             rect_y + 0.2,

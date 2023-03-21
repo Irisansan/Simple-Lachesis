@@ -184,7 +184,7 @@ class Lachesis:
                             else:
                                 votes_against += self.validator_weights[previous_root[0]]
 
-                        quorum = self.quorum(r)
+                        quorum = self.quorum(self.frame_to_decide)
 
                         vote = {
                             "decided": votes_for >= quorum or votes_against >= quorum,
@@ -235,7 +235,7 @@ class Lachesis:
             - The first event of a validator
             - An event, which is forkless caused by the previous frame roots' quorum
 
-            This function assumes a validator is allowed to be re-introduced if it 
+            This function assumes a validator is allowed to be re-introduced if it
             was "offline" for a few frames
             """
             if (
@@ -290,9 +290,19 @@ class Lachesis:
                                 node_weight_last_frame += self.validator_weights[val]
 
                         quorum = (
-                            node_weight_last_frame >= self.quorum(self.frame - 1)
+                            node_weight_last_frame
+                            >= (
+                                self.quorum(self.frame - 2)
+                                if self.frame - 2 in self.root_set_validators
+                                else self.quorum(self.frame - 1)
+                            )
                             if last_frame_check
-                            else node_weight_current_frame >= self.quorum(self.frame)
+                            else node_weight_current_frame
+                            >= (
+                                self.quorum(self.frame - 1)
+                                if self.frame - 1 in self.root_set_validators
+                                else self.quorum(self.frame)
+                            )
                         )
 
                         if quorum:
