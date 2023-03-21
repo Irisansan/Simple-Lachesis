@@ -315,20 +315,11 @@ class Lachesis:
             self.root_set_validators[self.frame] = set()
             self.root_set_nodes[self.frame] = set()
             for root in new_root_set:
+                root[1]["frame"] = self.frame
                 self.root_set_validators[self.frame].add(root[0][0])
                 self.root_set_nodes[self.frame].add(root[0])
 
         # print(self.time, self.root_set_validators)
-
-    """
-    NOTE: to-do list:
-
-    -make atropos election deterministic
-    -write function to graph results
-    -correct test graphs to only communicate to neighbors - form adjacency
-     matrices, etc.
-    -communicate with others nodes
-    """
 
 
 # Lachesis will eventually run for every node/validator, each of which
@@ -360,6 +351,7 @@ def process_graph_by_timesteps(graph):
                         "highest_events_observed_by_event": {},
                         "root": False,
                         "cheater": False,
+                        "frame": lachesis_state.frame,
                     },
                 )
             )
@@ -372,6 +364,7 @@ def process_graph_by_timesteps(graph):
                 highest_events_observed_by_event={},
                 root=False,
                 cheater=False,
+                frame=lachesis_state.frame,
             )
             successors = graph.successors((validator, timestamp))
             for successor in successors:
@@ -392,8 +385,8 @@ def process_graph_by_timesteps(graph):
     G = lachesis_state.local_dag
     graph_results(G, lachesis_state.cheater_list, lachesis_state.root_set_nodes, lachesis_state.atropos_roots)
 
-    print("root set nodes:", lachesis_state.root_set_nodes)
-    print("atropos roots:", lachesis_state.atropos_roots)
+    # print("root set nodes:", lachesis_state.root_set_nodes)
+    # print("atropos roots:", lachesis_state.atropos_roots)
 
     # print("Nodes in the graph:")
     # for node in G.nodes(data=True):

@@ -1,9 +1,6 @@
 import networkx as nx
 import matplotlib.pyplot as plt
 
-import networkx as nx
-import matplotlib.pyplot as plt
-
 
 def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
     colors = ["orange", "yellow", "blue", "cyan", "purple"]
@@ -26,6 +23,7 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
         atropos_roots_new[value] = key
 
     node_colors = {}
+    node_frames = {}
 
     bad_nodes = []
     for node in digraph.nodes:
@@ -33,12 +31,17 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
             bad_nodes.append(node)
         else:
             node_colors[node] = "#666699"
+            node_frames[node] = digraph.nodes.get(node)["frame"]
         if node in root_set_nodes_new:
             node_colors[node] = colors[root_set_nodes_new[node] % 5]
+            node_frames[node] = digraph.nodes.get(node)["frame"]
         if node in atropos_roots_new:
             node_colors[node] = "#66ff99"
+            node_frames[node] = digraph.nodes.get(node)["frame"]
 
     digraph.remove_nodes_from(bad_nodes)
+
+    pos = {}
 
     figsize = [20, 10]
     # Scale the figure size proportionally to the number of levels and nodes
@@ -48,13 +51,40 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
         figsize[0] = figsize[0] * num_nodes / 4
         figsize[1] = figsize[1] * num_nodes / 10
 
-    pos = {}
-
     fig = plt.figure(figsize=(figsize[0], figsize[1]))
     for i in range(num_nodes + 1):
         for j in range(num_levels + 1):
             node = (chr(i + 65), j)
             pos[node] = (j, i)
+
+    for frame in set(node_frames.values()):
+        nodes_in_frame = [node for node in node_frames if node_frames[node] == frame]
+        min_x, min_y, max_x, max_y = float("inf"), float("inf"), float("-inf"), float("-inf")
+        for node in nodes_in_frame:
+            x, y = pos[node]
+            min_x = min(min_x, x)
+            min_y = min(min_y, y)
+            max_x = max(max_x, x)
+            max_y = max(max_y, y)
+        rect = plt.Rectangle(
+            (min_x - 0.5, min_y - 0.5),
+            max_x - min_x + 1,
+            max_y - min_y + 1,
+            edgecolor=colors[frame % 5],
+            facecolor="none",
+        )
+
+        plt.gca().add_patch(rect)
+        rect_x, rect_y = rect.get_xy()
+        plt.text(
+            rect_x + 0.2,
+            rect_y + 0.2,
+            r"$\mathrm{{frame}}\ {}$".format(frame),
+            ha="center",
+            va="center",
+            fontsize=10,
+            rotation=0,
+        )
 
     labels = {
         (chr(i + 65), j): (chr(i + 65), j, digraph.nodes.get((chr(i + 65), j))["predecessors"])
@@ -62,7 +92,6 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
         for j in range(num_levels + 1)
         if (chr(i + 65), j) in digraph.nodes
     }
-    print("labels", labels)
 
     nx.draw(
         digraph,
