@@ -16,6 +16,8 @@ class Lachesis:
     # state of Lachesis
     def __init__(self, validator=None):
         self.frame = 0
+        self.frame_border_times = [0]
+        self.block = 0
         self.root_set_validators = {}
         self.root_set_nodes = {}
         self.election_votes = {}
@@ -204,6 +206,7 @@ class Lachesis:
 
         if self.frame_to_decide in self.atropos_roots:
             self.frame_to_decide += 1
+            self.block += 1
 
         # print("atropos roots", self.atropos_roots)
         # print("frame to decide:", self.frame_to_decide)
@@ -314,10 +317,19 @@ class Lachesis:
             self.frame += 1
             self.root_set_validators[self.frame] = set()
             self.root_set_nodes[self.frame] = set()
+            min_root_time = float("inf")
             for root in new_root_set:
-                root[1]["frame"] = self.frame
                 self.root_set_validators[self.frame].add(root[0][0])
                 self.root_set_nodes[self.frame].add(root[0])
+                if root[0][1] < min_root_time:
+                    min_root_time = root[0][1]
+            self.frame_border_times.append(min_root_time)
+
+            for t in range(min_root_time, self.time + 1):
+                for v in self.validators:
+                    if (v, t) in self.local_dag.nodes:
+                        node = ((v, t), self.local_dag.nodes.get((v, t)))
+                        node[1]["frame"] = self.frame
 
         # print(self.time, self.root_set_validators)
 

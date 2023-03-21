@@ -19,6 +19,7 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
             num_levels = node[1]
 
     atropos_roots_new = {}
+    max_decided_frame = max([root for root in atropos_roots])
     for key, value in atropos_roots.items():
         atropos_roots_new[value] = key
 
@@ -76,10 +77,13 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots):
 
         plt.gca().add_patch(rect)
         rect_x, rect_y = rect.get_xy()
+        frame_text = r"$\mathrm{{block}}\ {}$".format(frame)
+        if frame > max_decided_frame:
+            frame_text = r"$\mathrm{{frame}}\ {}$".format(frame)
         plt.text(
             rect_x + 0.2,
             rect_y + 0.2,
-            r"$\mathrm{{frame}}\ {}$".format(frame),
+            frame_text,
             ha="center",
             va="center",
             fontsize=10,
