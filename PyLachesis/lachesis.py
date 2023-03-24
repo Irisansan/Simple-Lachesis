@@ -26,6 +26,7 @@ class Lachesis:
         self.forkless_cause_set = set()
         self.decided_roots = {}
         self.atropos_roots = {}
+        self.new_root_set = set()
 
     def quorum(self, frame_number):
         return 2 * sum([self.validator_weights[x] for x in self.root_set_validators[frame_number]]) // 3 + 1
@@ -49,7 +50,7 @@ class Lachesis:
             t_events = target[1]["highest_events_observed_by_event"]
 
             # efficency boost as all older nodes are irrelevant
-            t_events = {k: v for (k, v) in t_events.items() if k[1] >= self.frame - 1}
+            t_events = {k: v for (k, v) in t_events.items() if k[1] >= self.frame - 1 and k[0] not in self.cheater_list}
             for (key, value) in t_events.items():
 
                 if (
@@ -92,7 +93,11 @@ class Lachesis:
             t_events = target[1]["lowest_events_which_observe_event"]
 
             filtered_t_events = {
-                validator: {vfp: sequence for vfp, sequence in frame_dict.items() if vfp[1] >= i}
+                validator: {
+                    vfp: sequence
+                    for vfp, sequence in frame_dict.items()
+                    if vfp[1] >= i and vfp[0] not in self.cheater_list
+                }
                 for validator, frame_dict in t_events.items()
             }
 
@@ -123,6 +128,13 @@ class Lachesis:
                 while remaining_frames >= 0:
                     if target[0] in self.root_set_validators[remaining_frames]:
                         self.root_set_validators[remaining_frames].remove(target[0])
+
+                    bad_roots = {(x, y) for (x, y) in self.root_set_nodes[remaining_frames] if x == target[0]}
+
+                    for root in bad_roots:
+                        root_node = self.local_dag.nodes.get(root)
+                        root_node["root"] = False
+                        root_node["cheater"] = True
 
                     self.root_set_nodes[remaining_frames] = {
                         (x, y) for (x, y) in self.root_set_nodes[remaining_frames] if x != target[0]
@@ -213,7 +225,6 @@ class Lachesis:
     def check_for_roots(self):
 
         update_frame = False
-        new_root_set = set()
 
         for node in self.timestep_nodes:
             validator, timestamp = node[0]
@@ -276,37 +287,44 @@ class Lachesis:
                         if self.forkless_cause(val, target, frame):
                             node_weight_current_frame += self.validator_weights[val]
                         if node_weight_current_frame >= self.quorum(self.frame):
-                            self.local_dag.nodes[target[0]]["root"] = True
-                            new_root_set.add(target[0])
+                            if target[0][0] not in [node[0] for node in self.new_root_set]:
+                                self.local_dag.nodes[target[0]]["root"] = True
+                                self.local_dag.nodes[target[0]]["frame"] = self.frame + 1
+                                self.new_root_set.add(target[0])
 
-        print(new_root_set)
+        print("time", self.time)
+        print("new_root_set", self.new_root_set)
 
-        update_frame = sum([self.validator_weights[val[0]] for val in new_root_set]) >= self.quorum(self.frame)
+        update_frame = sum([self.validator_weights[val[0]] for val in self.new_root_set]) >= self.quorum(self.frame)
 
-        if update_frame:
-            self.frame += 1
+        if self.frame not in self.root_set_nodes:
             self.root_set_validators[self.frame] = set()
             self.root_set_nodes[self.frame] = set()
-            min_root_time = float("inf")
-            for root in new_root_set:
-                self.root_set_validators[self.frame].add(root[0])
-                self.root_set_nodes[self.frame].add(root)
-                if root[1] < min_root_time:
-                    min_root_time = root[1]
-            self.frame_border_times.append(min_root_time)
+        if self.frame + 1 not in self.root_set_nodes:
+            self.root_set_validators[self.frame + 1] = set()
+            self.root_set_nodes[self.frame + 1] = set()
 
+        for root in self.new_root_set:
+            self.root_set_validators[self.frame + 1].add(root[0])
+            self.root_set_nodes[self.frame + 1].add(root)
+
+        min_root_time = float("inf")
+        for root in self.new_root_set:
+            self.root_set_validators[self.frame + 1].add(root[0])
+            self.root_set_nodes[self.frame + 1].add(root)
+            if root[1] < min_root_time:
+                min_root_time = root[1]
+
+        if min_root_time < self.time:
             for t in range(min_root_time, self.time + 1):
                 for v in self.validators:
                     if (v, t) in self.local_dag.nodes:
                         node = ((v, t), self.local_dag.nodes.get((v, t)))
-                        node[1]["frame"] = self.frame
+                        node[1]["frame"] = self.frame + 1
 
-            new_root_set = set()
-
-        else:
-            for root in new_root_set:
-                self.root_set_validators[self.frame].add(root[0])
-                self.root_set_nodes[self.frame].add(root)
+        if update_frame:
+            self.frame += 1
+            self.new_root_set = set()
 
         # print(self.time, self.root_set_validators)
 
@@ -329,32 +347,60 @@ def process_graph_by_timesteps(graph):
             lachesis_state.validator_weights[validator] = node[1]["weight"]
         while timestamp == lachesis_state.time:
             # add node to graph of current nodes and local DAG
-            lachesis_state.timestep_nodes.append(
-                (
-                    (validator, timestamp),
-                    {
-                        "timestamp": timestamp,
-                        "predecessors": node[1]["predecessors"],
-                        "weight": node[1]["weight"],
-                        "lowest_events_which_observe_event": {},
-                        "highest_events_observed_by_event": {},
-                        "root": False,
-                        "cheater": False,
-                        "frame": lachesis_state.frame,
-                    },
+            if validator not in lachesis_state.cheater_list:
+                lachesis_state.timestep_nodes.append(
+                    (
+                        (validator, timestamp),
+                        {
+                            "timestamp": timestamp,
+                            "predecessors": node[1]["predecessors"],
+                            "weight": node[1]["weight"],
+                            "lowest_events_which_observe_event": {},
+                            "highest_events_observed_by_event": {},
+                            "root": False,
+                            "cheater": False,
+                            "frame": lachesis_state.frame,
+                        },
+                    )
                 )
-            )
-            lachesis_state.local_dag.add_node(
-                (validator, timestamp),
-                timestamp=timestamp,
-                predecessors=node[1]["predecessors"],
-                weight=node[1]["weight"],
-                lowest_events_which_observe_event={},
-                highest_events_observed_by_event={},
-                root=False,
-                cheater=False,
-                frame=lachesis_state.frame,
-            )
+                lachesis_state.local_dag.add_node(
+                    (validator, timestamp),
+                    timestamp=timestamp,
+                    predecessors=node[1]["predecessors"],
+                    weight=node[1]["weight"],
+                    lowest_events_which_observe_event={},
+                    highest_events_observed_by_event={},
+                    root=False,
+                    cheater=False,
+                    frame=lachesis_state.frame,
+                )
+            else:
+                lachesis_state.timestep_nodes.append(
+                    (
+                        (validator, timestamp),
+                        {
+                            "timestamp": timestamp,
+                            "predecessors": node[1]["predecessors"],
+                            "weight": node[1]["weight"],
+                            "lowest_events_which_observe_event": {},
+                            "highest_events_observed_by_event": {},
+                            "root": False,
+                            "cheater": True,
+                            "frame": lachesis_state.frame,
+                        },
+                    )
+                )
+                lachesis_state.local_dag.add_node(
+                    (validator, timestamp),
+                    timestamp=timestamp,
+                    predecessors=node[1]["predecessors"],
+                    weight=node[1]["weight"],
+                    lowest_events_which_observe_event={},
+                    highest_events_observed_by_event={},
+                    root=False,
+                    cheater=True,
+                    frame=lachesis_state.frame,
+                )
             successors = graph.successors((validator, timestamp))
             for successor in successors:
                 lachesis_state.local_dag.add_edge((validator, timestamp), successor)
@@ -380,6 +426,7 @@ def process_graph_by_timesteps(graph):
         print(node[1])
         print()
 
+    print(lachesis_state.cheater_list)
     """
     print("Edges in the graph")
     for edge in G.edges():
@@ -391,7 +438,7 @@ def process_graph_by_timesteps(graph):
 
 if __name__ == "__main__":
     # iterating over all graphs as part of testing, etc.
-    input_graphs_directory = "inputs/graphs/graph_10.txt"
+    input_graphs_directory = "inputs/graphs/graph_12.txt"
 
     print("file count", sum([1 for filename in glob.glob(input_graphs_directory)]))
     i = 0
