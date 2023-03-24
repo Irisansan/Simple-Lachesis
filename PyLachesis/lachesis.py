@@ -13,6 +13,7 @@ class Lachesis:
         self.block = 0
         self.root_set_validators = {}
         self.root_set_nodes = {}
+        self.next_root_set = set()
         self.election_votes = {}
         self.frame_to_decide = 0
         self.cheater_list = set()
@@ -46,6 +47,7 @@ class Lachesis:
             target = (target, self.local_dag.nodes.get(target))
 
             t_events = target[1]["highest_events_observed_by_event"]
+
             # efficency boost as all older nodes are irrelevant
             t_events = {k: v for (k, v) in t_events.items() if k[1] >= self.frame - 1}
             for (key, value) in t_events.items():
@@ -211,7 +213,7 @@ class Lachesis:
     def check_for_roots(self):
 
         update_frame = False
-        new_root_set = []
+        new_root_set = set()
 
         for node in self.timestep_nodes:
             validator, timestamp = node[0]
@@ -250,14 +252,12 @@ class Lachesis:
 
             self.expel_cheaters(node)
             self.highest_events_observed_by_event(node)
-            self.lowest_events_which_observe_event(node)
 
             for (source, target) in self.local_dag.out_edges(node[0]):
                 target = (target, self.local_dag.nodes.get(target))
-                source = (source, self.local_dag.nodes.get(source))
+                self.lowest_events_which_observe_event(target)
 
                 node_weight_current_frame = 0
-                node_weight_last_frame = 0
 
                 # validator and frame pair = vfp
                 for vfp in target[1]["highest_events_observed_by_event"]:
@@ -272,39 +272,16 @@ class Lachesis:
                         else False
                     )
 
-                    last_frame_check = (
-                        True
-                        if frame == self.frame - 1
-                        and target[0][0] in self.root_set_validators[self.frame - 1]
-                        and not target[0][0] in self.root_set_validators[self.frame]
-                        and val in self.root_set_validators[self.frame - 1]
-                        else False
-                    )
-
-                    if (current_frame_check or last_frame_check) and not self.local_dag.nodes[target[0]]["root"]:
-
+                    if current_frame_check:
                         if self.forkless_cause(val, target, frame):
-                            if current_frame_check:
-                                node_weight_current_frame += self.validator_weights[val]
-                            else:
-                                node_weight_last_frame += self.validator_weights[val]
-
-                        quorum = (
-                            node_weight_last_frame >= self.quorum(self.frame - 1)
-                            if last_frame_check
-                            else node_weight_current_frame >= self.quorum(self.frame)
-                        )
-
-                        if quorum:
-
+                            node_weight_current_frame += self.validator_weights[val]
+                        if node_weight_current_frame >= self.quorum(self.frame):
                             self.local_dag.nodes[target[0]]["root"] = True
+                            new_root_set.add(target[0])
 
-                            if target[0][0] in self.root_set_validators[self.frame]:
-                                update_frame = True
-                                new_root_set.append(target)
-                            else:
-                                self.root_set_validators[self.frame].add(target[0][0])
-                                self.root_set_nodes[self.frame].add(target[0])
+        print(new_root_set)
+
+        update_frame = sum([self.validator_weights[val[0]] for val in new_root_set]) >= self.quorum(self.frame)
 
         if update_frame:
             self.frame += 1
@@ -312,10 +289,10 @@ class Lachesis:
             self.root_set_nodes[self.frame] = set()
             min_root_time = float("inf")
             for root in new_root_set:
-                self.root_set_validators[self.frame].add(root[0][0])
-                self.root_set_nodes[self.frame].add(root[0])
-                if root[0][1] < min_root_time:
-                    min_root_time = root[0][1]
+                self.root_set_validators[self.frame].add(root[0])
+                self.root_set_nodes[self.frame].add(root)
+                if root[1] < min_root_time:
+                    min_root_time = root[1]
             self.frame_border_times.append(min_root_time)
 
             for t in range(min_root_time, self.time + 1):
@@ -323,6 +300,13 @@ class Lachesis:
                     if (v, t) in self.local_dag.nodes:
                         node = ((v, t), self.local_dag.nodes.get((v, t)))
                         node[1]["frame"] = self.frame
+
+            new_root_set = set()
+
+        else:
+            for root in new_root_set:
+                self.root_set_validators[self.frame].add(root[0])
+                self.root_set_nodes[self.frame].add(root)
 
         # print(self.time, self.root_set_validators)
 
@@ -387,16 +371,14 @@ def process_graph_by_timesteps(graph):
         lachesis_state.time += 1
         lachesis_state.timestep_nodes = []
 
-    return lachesis_state
-
     # print("root set nodes:", lachesis_state.root_set_nodes)
     # print("atropos roots:", lachesis_state.atropos_roots)
 
-    # print("Nodes in the graph:")
-    # for node in G.nodes(data=True):
-    #     print(node[0])
-    #     print(node[1])
-    #     print()
+    print("Nodes in the graph:")
+    for node in lachesis_state.local_dag.nodes(data=True):
+        print(node[0])
+        print(node[1])
+        print()
 
     """
     print("Edges in the graph")
@@ -404,14 +386,12 @@ def process_graph_by_timesteps(graph):
         print(edge)
     """
 
+    return lachesis_state
+
 
 if __name__ == "__main__":
-    # graph = G
-    G = convert_input_to_DAG("inputs/graphs/graph_64.txt")
-    process_graph_by_timesteps(G)
-
     # iterating over all graphs as part of testing, etc.
-    input_graphs_directory = "inputs/graphs/graph_*.txt"
+    input_graphs_directory = "inputs/graphs/graph_10.txt"
 
     print("file count", sum([1 for filename in glob.glob(input_graphs_directory)]))
     i = 0

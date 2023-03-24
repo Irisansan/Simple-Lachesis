@@ -24,6 +24,8 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots, output_f
     for key, value in atropos_roots.items():
         atropos_roots_new[value] = key
 
+    atropos_colors = ["#66ff99", "#009933"]
+
     node_colors = {}
     node_frames = {}
 
@@ -38,7 +40,7 @@ def graph_results(digraph, cheater_list, root_set_nodes, atropos_roots, output_f
             node_colors[node] = colors[root_set_nodes_new[node] % 5]
             node_frames[node] = digraph.nodes.get(node)["frame"]
         if node in atropos_roots_new:
-            node_colors[node] = "#66ff99"
+            node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
             node_frames[node] = digraph.nodes.get(node)["frame"]
 
     digraph.remove_nodes_from(bad_nodes)
