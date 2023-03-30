@@ -1,7 +1,0 @@
-node: (B,0,0);
-node: (C,0,0);
-node: (A,1,0);
-node: (B,1,1); child: (B,0,0);
-node: (B,2,2); child: (B,1,1); child: (A,1,0);
-node: (B,4,3); child: (B,2,2);
-node: (C,4,1); child: (C,0,0);

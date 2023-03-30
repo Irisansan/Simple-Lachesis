@@ -1,7 +1,0 @@
-EventB0;1;0;B;
-EventC0;1;0;C;
-EventA0;1;0;A;
-EventB1;1;1;B;EventB0
-EventB2;1;2;B;EventB1,EventA0
-EventB3;1;3;B;EventB2
-EventC1;1;1;C;EventC0
