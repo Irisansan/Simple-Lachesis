@@ -95,7 +95,7 @@ def createGraph(
                             G.add_edge(node, target)
 
     labels = {
-        (i, j): (chr(j + 65), i+1, parent_count[(i, j)]+1)
+        (i, j): (chr(j + 65), i + 1, parent_count[(i, j)] + 1)
         for i in range(num_levels)
         for j in range(num_nodes)
         if (i, j) in G.nodes
@@ -124,7 +124,7 @@ def createGraph(
         for i in range(num_levels):
             # color_map[node] = cheater_nodes[node]
             if (i, j) in G.nodes:
-                labels[(i, j)] = (chr(deepest_cheater[1] + 65), i + 1, cheating_parents+1)
+                labels[(i, j)] = (chr(deepest_cheater[1] + 65), i + 1, cheating_parents + 1)
                 cheating_parents += 1
                 color_map[(i, j)] = color_map[(deepest_cheater)]
 
@@ -155,9 +155,6 @@ def createGraph(
         node_size=900,
         font_weight="bold",
     )
-
-    # Adjust figure parameters
-    plt.tight_layout()
 
     if annotate:
         plt.text(
@@ -327,9 +324,9 @@ if __name__ == "__main__":
         else:
             observing_probability = observe_prob_input
 
-        graph_filename = f"graphs/graph_{i+1}.pdf"
-        txt_filename_format_one = f"graphs/graph_{i+1}.txt"
-        txt_filename_format_two = f"graphs/events_{i+1}.txt"
+        graph_filename = f"graphs/graph_{i+101}.pdf"
+        txt_filename_format_one = f"graphs/graph_{i+101}.txt"
+        txt_filename_format_two = f"graphs/events_{i+101}.txt"
         createGraph(
             cheater_input,
             num_levels,
