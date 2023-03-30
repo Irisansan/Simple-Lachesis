@@ -95,7 +95,7 @@ def createGraph(
                             G.add_edge(node, target)
 
     labels = {
-        (i, j): (chr(j + 65), i + 1, parent_count[(i, j)])
+        (i, j): (chr(j + 65), i+1, parent_count[(i, j)]+1)
         for i in range(num_levels)
         for j in range(num_nodes)
         if (i, j) in G.nodes
@@ -124,7 +124,7 @@ def createGraph(
         for i in range(num_levels):
             # color_map[node] = cheater_nodes[node]
             if (i, j) in G.nodes:
-                labels[(i, j)] = (chr(deepest_cheater[1] + 65), i + 1, cheating_parents)
+                labels[(i, j)] = (chr(deepest_cheater[1] + 65), i + 1, cheating_parents+1)
                 cheating_parents += 1
                 color_map[(i, j)] = color_map[(deepest_cheater)]
 
@@ -224,7 +224,7 @@ def createGraph(
         for node in G:
             validator = "Event" + labels[node][0]
             epoch = "1"  # affixed to 1 for now
-            seq = str(labels[node][2] + 1)
+            seq = str(labels[node][2])
             event = validator + seq
             creator = chr(cheater_nodes[node][1] + 65) if node in cheater_nodes.keys() else chr(node[1] + 65)
             node_information = ";".join([event, epoch, seq, creator])
