@@ -47,7 +47,7 @@ forkless cause algorithm.
 
 - To get the highest events by individual validators observed by adding event: we need to iterate vectors of highest observed events of direct children of the newly added event and find maximum for each validatorId.
 
-- To get the lowest events by individual validators which do observe the adding event: when adding a new event, we need to update the LowestObserving vector of all its parents and also their parents.
+- To get the lowest events by individual validators which do observe the adding event: when adding a new event, we need to update the LowestObserving vector of all its parents and also their parents. As soon as it achieves an event, which has LowestObserving already set for validator of the new event, we don't update it and ignore its parents.
 
 **store.go**
 it stores all events, validators, frames and Atropos.
