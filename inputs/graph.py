@@ -124,7 +124,11 @@ def createGraph(
         for i in range(num_levels):
             # color_map[node] = cheater_nodes[node]
             if (i, j) in G.nodes:
-                labels[(i, j)] = (chr(deepest_cheater[1] + 65), i + 1, cheating_parents + 1)
+                labels[(i, j)] = (
+                    chr(deepest_cheater[1] + 65),
+                    i + 1,
+                    cheating_parents + 1,
+                )
                 cheating_parents += 1
                 color_map[(i, j)] = color_map[(deepest_cheater)]
 
@@ -147,7 +151,10 @@ def createGraph(
         pos,
         with_labels=True,
         labels={
-            val: r"$\mathrm{{{}}}_{{{},{}}}$".format(labels[val][0], labels[val][1], labels[val][2]) for val in labels
+            val: r"$\mathrm{{{}}}_{{{},{}}}$".format(
+                labels[val][0], labels[val][1], labels[val][2]
+            )
+            for val in labels
         },
         font_family="serif",
         font_size=9,
@@ -202,7 +209,15 @@ def createGraph(
     # Save graph as text data in format one
     with open(txt_filename_format_one, "w") as f:
         for node in G:
-            f.write("node: (" + str(labels[node][0]) + "," + str(labels[node][1]) + "," + str(labels[node][2]) + ")")
+            f.write(
+                "node: ("
+                + str(labels[node][0])
+                + ","
+                + str(labels[node][1])
+                + ","
+                + str(labels[node][2])
+                + ")"
+            )
             f.write(";")
             for child in G[node]:
                 f.write(
@@ -223,9 +238,18 @@ def createGraph(
             epoch = "1"  # affixed to 1 for now
             seq = str(labels[node][2])
             event = validator + seq
-            creator = chr(cheater_nodes[node][1] + 65) if node in cheater_nodes.keys() else chr(node[1] + 65)
+            creator = (
+                chr(cheater_nodes[node][1] + 65)
+                if node in cheater_nodes.keys()
+                else chr(node[1] + 65)
+            )
             node_information = ";".join([event, epoch, seq, creator])
-            children_information = ",".join(["Event" + labels[child][0] + str(labels[child][2]) for child in G[node]])
+            children_information = ",".join(
+                [
+                    "Event" + labels[child][0] + str(labels[child][2])
+                    for child in G[node]
+                ]
+            )
 
             f.write(node_information + ";" + children_information)
             f.write("\n")
@@ -252,7 +276,9 @@ if __name__ == "__main__":
     else:
         num_graphs = int(num_graphs)
 
-    cheater_input = input("Enter the probability that a random validator node is a cheater: (Default is 0.2) ")
+    cheater_input = input(
+        "Enter the probability that a random validator node is a cheater: (Default is 0.2) "
+    )
     if cheater_input == "":
         cheater_input = 0.2
     else:
@@ -324,9 +350,9 @@ if __name__ == "__main__":
         else:
             observing_probability = observe_prob_input
 
-        graph_filename = f"graphs/graph_{i+101}.pdf"
-        txt_filename_format_one = f"graphs/graph_{i+101}.txt"
-        txt_filename_format_two = f"graphs/events_{i+101}.txt"
+        graph_filename = f"graphs/graph_{i+51}.pdf"
+        txt_filename_format_one = f"graphs/graph_{i+51}.txt"
+        txt_filename_format_two = f"graphs/events_{i+51}.txt"
         createGraph(
             cheater_input,
             num_levels,
