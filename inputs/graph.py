@@ -77,7 +77,7 @@ def createGraph(
                                 break
 
     # Add edges
-    for i in range(1, num_levels):
+    for i in range(num_levels):
         for j in range(num_nodes):
             node = (i, j)
             if node in G.nodes and node not in cheater_nodes.keys():
@@ -350,9 +350,9 @@ if __name__ == "__main__":
         else:
             observing_probability = observe_prob_input
 
-        graph_filename = f"graphs/graph_{i+51}.pdf"
-        txt_filename_format_one = f"graphs/graph_{i+51}.txt"
-        txt_filename_format_two = f"graphs/events_{i+51}.txt"
+        graph_filename = f"graphs/graph_{i+1}.pdf"
+        txt_filename_format_one = f"graphs/graph_{i+1}.txt"
+        txt_filename_format_two = f"graphs/events_{i+1}.txt"
         createGraph(
             cheater_input,
             num_levels,
