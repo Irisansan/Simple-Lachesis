@@ -1,19 +1,20 @@
 from input_to_dag import convert_input_to_DAG
-import glob
-import networkx as nx
-from graph_results import graph_results
-import os
 from collections import deque
+import matplotlib.pyplot as plt
+import networkx as nx
+import glob
+import os
 
 
 class Event:
-    def __init__(self, id, seq, creator, parents):
+    def __init__(self, id, seq, creator, parents, frame=None):
         self.id = id
         self.seq = seq
         self.creator = creator
         self.parents = parents
         self.lowest_events_vector = {}
         self.highest_events_observed_by_event = {}
+        self.frame = frame
 
 
 class Lachesis:
@@ -164,15 +165,14 @@ class Lachesis:
 
             self.atropos_voting(event.id)
 
+        event.frame = self.frame
+
     def forkless_cause_quorum(self, event, quorum, frame_number):
         forkless_cause_count = 0
         current_frame_roots = self.root_set_nodes[frame_number]
 
         for root in current_frame_roots:
             root_event = self.local_dag.nodes[root]["event"]
-            # print(root_event.id, event.id)
-            # print(event.lowest_events_vector)
-            # print(event.highest_events_observed_by_event)
             if self.forkless_cause(event, root_event):
                 forkless_cause_count += self.validator_weights[root_event.creator]
 
@@ -184,9 +184,8 @@ class Lachesis:
             if self.frame_to_decide not in self.election_votes:
                 self.election_votes[self.frame_to_decide] = {}
             if (new_root, candidate) not in self.election_votes[self.frame_to_decide]:
-                vote = None  # Initialize the vote variable
+                vote = None
                 if self.frame == self.frame_to_decide + 1:
-                    # Round 1 of voting
                     vote = {
                         "decided": False,
                         "yes": self.forkless_cause(
@@ -195,7 +194,6 @@ class Lachesis:
                         ),
                     }
                 elif self.frame >= self.frame_to_decide + 2:
-                    # Round 2+ of voting
                     yes_votes = 0
                     no_votes = 0
                     for prev_root in self.root_set_nodes[self.frame - 1]:
@@ -213,7 +211,6 @@ class Lachesis:
                         "yes": yes_votes >= no_votes,
                     }
 
-                # Update self.election_votes for both decided and undecided cases
                 if vote is not None:
                     self.election_votes[self.frame_to_decide][
                         (new_root, candidate)
@@ -270,23 +267,147 @@ class Lachesis:
 
             self.time += 1
 
-        print("atropos roots:", self.atropos_roots)
-        print("frame:", self.frame)
-        print("block:", self.block)
-        print("frame_to_decide:", self.frame_to_decide)
-        print("root_set_nodes:", self.root_set_nodes)
-        print("root_set_validators:", self.root_set_validators)
-        print("election_votes:", self.election_votes)
-
         return self
 
-    def process_graph(graph):
-        lachesis_state = Lachesis()
-        lachesis_state.process_graph_by_timesteps(graph)
-        return lachesis_state
+    def graph_results(self, output_filename):
+        colors = ["orange", "yellow", "blue", "cyan", "purple"]
+
+        root_set_nodes_new = {}
+        for key, values in self.root_set_nodes.items():
+            for v in values:
+                validator, seq = v
+                timestamp = self.local_dag.nodes[v]["timestamp"]
+                root_set_nodes_new[(validator, timestamp)] = key
+
+        atropos_roots_new = {}
+        for key, value in self.atropos_roots.items():
+            validator, seq = value
+            timestamp = self.local_dag.nodes[value]["timestamp"]
+            atropos_roots_new[(validator, timestamp)] = key
+
+        atropos_colors = ["limegreen", "green"]
+
+        timestamp_dag = nx.DiGraph()
+
+        for node, data in self.local_dag.nodes(data=True):
+            validator, seq = node
+            timestamp = data["timestamp"]
+            timestamp_dag.add_node((validator, timestamp), seq=seq, **data)
+
+        for src, dest in self.local_dag.edges:
+            timestamp_dag.add_edge(
+                (src[0], self.local_dag.nodes[src]["timestamp"]),
+                (dest[0], self.local_dag.nodes[dest]["timestamp"]),
+            )
+
+        node_colors = {}
+        for node in timestamp_dag.nodes:
+            node_colors[node] = "gray"
+            if node in root_set_nodes_new:
+                node_colors[node] = colors[root_set_nodes_new[node] % 5]
+            if node in atropos_roots_new:
+                node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
+
+        pos = {}
+        num_nodes = len(self.validator_weights)
+        num_levels = max([node[1] for node in timestamp_dag.nodes])
+
+        figsize = [20, 10]
+        if num_levels >= 15:
+            figsize[0] = figsize[0] * num_levels / 20
+        if num_nodes >= 10:
+            figsize[0] = figsize[0] * num_nodes / 4
+            figsize[1] = figsize[1] * num_nodes / 10
+
+        fig = plt.figure(figsize=(figsize[0], figsize[1]))
+        for i in range(num_nodes):
+            for j in range(num_levels + 1):
+                node = (chr(i + 65), j)
+                pos[node] = (j, i)
+
+        labels = {
+            (chr(i + 65), j): (
+                chr(i + 65),
+                j,
+                timestamp_dag.nodes.get((chr(i + 65), j), {}).get("seq"),
+            )
+            for i in range(num_nodes)
+            for j in range(num_levels + 1)
+            if (chr(i + 65), j) in timestamp_dag.nodes
+        }
+
+        nx.draw(
+            timestamp_dag,
+            pos,
+            with_labels=True,
+            labels={
+                val: r"$\mathrm{{{}}}_{{{},{}}}$".format(
+                    labels[val][0], labels[val][1], labels[val][2]
+                )
+                for val in labels
+            },
+            font_family="serif",
+            font_size=9,
+            node_size=900,
+            node_color=[
+                node_colors.get(node, node_colors[node])
+                for node in timestamp_dag.nodes()
+            ],
+            font_weight="bold",
+        )
+
+        fig.savefig(
+            output_filename + ".pdf", format="pdf", dpi=300, bbox_inches="tight"
+        )
+        plt.close()
+
+    def run_lachesis(self, graph_file, output_file):
+        G = convert_input_to_DAG(graph_file)
+        self.process_graph_by_timesteps(G)
+        self.graph_results(output_file)
+
+        return {
+            "graph": graph_file,
+            "atropos_roots": self.atropos_roots,
+            "frame": self.frame,
+            "block": self.block,
+            "frame_to_decide": self.frame_to_decide,
+            "root_set_nodes": self.root_set_nodes,
+            "root_set_validators": self.root_set_validators,
+            "election_votes": self.election_votes,
+        }
 
 
 if __name__ == "__main__":
-    G = convert_input_to_DAG("../inputs/graphs/graph_1.txt")
+    graph_file = "../inputs/graphs/graph_1.txt"
+    output_file = "lachesis_results"
     lachesis_state = Lachesis()
-    lachesis_state.process_graph_by_timesteps(G)
+    result = lachesis_state.run_lachesis(graph_file, output_file)
+
+    for key, value in result.items():
+        if key != "local_dag":
+            print(f"{key}: {value}")
+
+    # # iterating over all graphs as part of testing, etc.
+    # input_graphs_directory = "inputs/graphs/graph_*.txt"
+
+    # print("file count", sum([1 for filename in glob.glob(input_graphs_directory)]))
+    # i = 0
+
+    # for filename in glob.glob(input_graphs_directory):
+    #     print(filename, "count:", i + 1)
+    #     input_filename = os.path.basename(filename)
+    #     graph_name = input_filename[
+    #         input_filename.index("_") + 1 : input_filename.index(".txt")
+    #     ]
+    #     graph = convert_input_to_DAG(filename)
+    #     lachesis_state = Lachesis()
+    #     lachesis_state.process_graph_by_timesteps(graph)
+    #     graph_results(
+    #         lachesis_state.local_dag,
+    #         lachesis_state.cheater_list,
+    #         lachesis_state.root_set_nodes,
+    #         lachesis_state.atropos_roots,
+    #         output_filename=f"results/result_{graph_name}",
+    #     )
+    #     i += 1
