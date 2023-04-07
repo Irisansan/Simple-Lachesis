@@ -1,5 +1,6 @@
 from input_to_dag import convert_input_to_DAG
 from collections import deque
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 import networkx as nx
 import glob
@@ -20,8 +21,8 @@ class Event:
 class Lachesis:
     def __init__(self, validator=None):
         self.frame = 1
-        self.frame_border_times = [0]
         self.block = 1
+        self.epoch = 1
         self.root_set_validators = {}
         self.root_set_nodes = {}
         self.election_votes = {}
@@ -32,7 +33,6 @@ class Lachesis:
         self.time = 0
         self.local_dag = nx.DiGraph()
         self.timestep_nodes = []
-        self.forkless_cause_set = set()
         self.decided_roots = {}
         self.atropos_roots = {}
 
@@ -154,7 +154,6 @@ class Lachesis:
 
             self.frame = target_frame
 
-            # Add new root set validators and nodes for the incremented frame
             if self.frame not in self.root_set_validators:
                 self.root_set_validators[self.frame] = set()
             if self.frame not in self.root_set_nodes:
@@ -320,8 +319,8 @@ class Lachesis:
             figsize[1] = figsize[1] * num_nodes / 10
 
         fig = plt.figure(figsize=(figsize[0], figsize[1]))
-        for i in range(num_nodes):
-            for j in range(num_levels + 1):
+        for i in range(num_nodes + 25):
+            for j in range(num_levels + 25):
                 node = (chr(i + 65), j)
                 pos[node] = (j, i)
 
@@ -379,35 +378,18 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    graph_file = "../inputs/graphs/graph_1.txt"
-    output_file = "lachesis_results"
-    lachesis_state = Lachesis()
-    result = lachesis_state.run_lachesis(graph_file, output_file)
+    input_graphs_directory = "../inputs/graphs/graph_*.txt"
+    file_list = glob.glob(input_graphs_directory)
 
-    for key, value in result.items():
-        if key != "local_dag":
-            print(f"{key}: {value}")
+    print("file count", len(file_list))
 
-    # # iterating over all graphs as part of testing, etc.
-    # input_graphs_directory = "inputs/graphs/graph_*.txt"
-
-    # print("file count", sum([1 for filename in glob.glob(input_graphs_directory)]))
-    # i = 0
-
-    # for filename in glob.glob(input_graphs_directory):
-    #     print(filename, "count:", i + 1)
-    #     input_filename = os.path.basename(filename)
-    #     graph_name = input_filename[
-    #         input_filename.index("_") + 1 : input_filename.index(".txt")
-    #     ]
-    #     graph = convert_input_to_DAG(filename)
-    #     lachesis_state = Lachesis()
-    #     lachesis_state.process_graph_by_timesteps(graph)
-    #     graph_results(
-    #         lachesis_state.local_dag,
-    #         lachesis_state.cheater_list,
-    #         lachesis_state.root_set_nodes,
-    #         lachesis_state.atropos_roots,
-    #         output_filename=f"results/result_{graph_name}",
-    #     )
-    #     i += 1
+    for i, input_filename in tqdm(
+        enumerate(file_list), total=len(file_list), desc="Processing files"
+    ):
+        base_filename = os.path.basename(input_filename)
+        graph_name = base_filename[
+            base_filename.index("_") + 1 : base_filename.index(".txt")
+        ]
+        output_filename = f"../inputs/results/result_{graph_name}"
+        lachesis_state = Lachesis()
+        lachesis_state.run_lachesis(input_filename, output_filename)
