@@ -2,6 +2,7 @@ from input_to_dag import convert_input_to_DAG
 from sortedcontainers import SortedSet
 from collections import deque
 from tqdm import tqdm
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import networkx as nx
 import glob
@@ -279,8 +280,22 @@ class Lachesis:
 
         return self
 
+    def darken_color(color, darken_factor):
+        r, g, b = color
+        r = int(r * darken_factor)
+        g = int(g * darken_factor)
+        b = int(b * darken_factor)
+        return (r, g, b)
+
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "blue", "cyan", "purple"]
+
+        colors_rgb = [mcolors.to_rgb(color) for color in colors]
+
+        darker_colors = []
+        for color in colors_rgb:
+            darker_color = tuple(c * 0.8 for c in color)
+            darker_colors.append(darker_color)
 
         root_set_nodes_new = {}
         for key, values in self.root_set_nodes.items():
@@ -313,14 +328,12 @@ class Lachesis:
 
         node_colors = {}
         for node in timestamp_dag.nodes:
-            node_colors[node] = "gray"
+            frame = timestamp_dag.nodes[node]["frame"]
+            node_colors[node] = colors[frame % len(colors)]
             if node in root_set_nodes_new:
-                node_colors[node] = colors[root_set_nodes_new[node] % 5]
+                node_colors[node] = darker_colors[root_set_nodes_new[node] % 5]
             if node in atropos_roots_new:
                 node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
-            else:
-                frame = timestamp_dag.nodes[node]["frame"]
-                node_colors[node] = colors[frame % len(colors)]
 
         pos = {}
         num_nodes = len(self.validator_weights)
