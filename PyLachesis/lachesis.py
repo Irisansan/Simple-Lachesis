@@ -164,7 +164,17 @@ class Lachesis:
 
             self.atropos_voting(event.id)
 
-        event.frame = self.frame
+        if is_root:
+            event.frame = target_frame
+        else:
+            direct_child_seq = event.seq - 1
+            direct_child = self.local_dag.nodes.get(
+                (event.creator, direct_child_seq), None
+            )
+            if direct_child:
+                event.frame = direct_child["event"].frame
+            else:
+                event.frame = 1  # Default frame if direct child not found
 
     def forkless_cause_quorum(self, event, quorum, frame_number):
         forkless_cause_count = 0
@@ -291,7 +301,8 @@ class Lachesis:
         for node, data in self.local_dag.nodes(data=True):
             validator, seq = node
             timestamp = data["timestamp"]
-            timestamp_dag.add_node((validator, timestamp), seq=seq, **data)
+            frame = data["event"].frame
+            timestamp_dag.add_node((validator, timestamp), seq=seq, frame=frame, **data)
 
         for src, dest in self.local_dag.edges:
             timestamp_dag.add_edge(
@@ -306,6 +317,9 @@ class Lachesis:
                 node_colors[node] = colors[root_set_nodes_new[node] % 5]
             if node in atropos_roots_new:
                 node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
+            else:
+                frame = timestamp_dag.nodes[node]["frame"]
+                node_colors[node] = colors[frame % len(colors)]
 
         pos = {}
         num_nodes = len(self.validator_weights)
