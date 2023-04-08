@@ -1,4 +1,5 @@
 from input_to_dag import convert_input_to_DAG
+from sortedcontainers import SortedSet
 from collections import deque
 from tqdm import tqdm
 import matplotlib.pyplot as plt
@@ -148,16 +149,16 @@ class Lachesis:
         is_root, target_frame = self.check_for_roots(event)
         if is_root:
             if target_frame not in self.root_set_validators:
-                self.root_set_validators[target_frame] = set()
+                self.root_set_validators[target_frame] = SortedSet()
             if target_frame not in self.root_set_nodes:
-                self.root_set_nodes[target_frame] = set()
+                self.root_set_nodes[target_frame] = SortedSet()
 
             self.frame = target_frame
 
             if self.frame not in self.root_set_validators:
-                self.root_set_validators[self.frame] = set()
+                self.root_set_validators[self.frame] = SortedSet()
             if self.frame not in self.root_set_nodes:
-                self.root_set_nodes[self.frame] = set()
+                self.root_set_nodes[self.frame] = SortedSet()
 
             self.root_set_validators[target_frame].add(event.creator)
             self.root_set_nodes[target_frame].add(event.id)
