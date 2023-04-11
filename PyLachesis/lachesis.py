@@ -188,7 +188,7 @@ class Lachesis:
             if direct_child:
                 event.frame = direct_child["event"].frame
             else:
-                event.frame = 1  # Default frame if direct child not found
+                event.frame = 1
 
     def forkless_cause_quorum(self, event, quorum, frame_number):
         forkless_cause_count = 0
@@ -355,7 +355,6 @@ class Lachesis:
                 node = (chr(i + 65), j)
                 pos[node] = (j, i)
 
-        # Remove cheater nodes from the timestamp_dag
         cheater_nodes = [
             (validator, timestamp)
             for validator, timestamp in timestamp_dag.nodes
@@ -420,7 +419,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    input_graphs_directory = "../inputs/graphs_with_cheaters/graph_*.txt"
+    input_graphs_directory = "../inputs/graphs/graph_*.txt"
     file_list = glob.glob(input_graphs_directory)
 
     print("file count", len(file_list))
@@ -432,6 +431,6 @@ if __name__ == "__main__":
         graph_name = base_filename[
             base_filename.index("_") + 1 : base_filename.index(".txt")
         ]
-        output_filename = f"../inputs/results_with_cheaters/result_{graph_name}"
+        output_filename = f"../inputs/results/result_{graph_name}"
         lachesis_state = Lachesis()
         lachesis_state.run_lachesis(input_filename, output_filename)
