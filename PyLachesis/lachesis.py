@@ -95,7 +95,7 @@ class Lachesis:
             if validator in b and b[validator]["seq"] <= seq:
                 yes += self.validator_weights[validator]
 
-        return yes > self.quorum(self.frame)
+        return yes >= self.quorum(self.frame)
 
     def set_lowest_events_vector(self, event):
         self.lowest_events_vector = {}
@@ -121,7 +121,15 @@ class Lachesis:
                 self.frame > 1
                 and len(self.root_set_validators[self.frame])
                 >= len(self.root_set_validators[self.frame - 1])
+                - len(
+                    [
+                        v
+                        for v in self.root_set_validators[self.frame - 1]
+                        if v in self.cheater_list
+                    ]
+                )
                 and event.creator in self.root_set_validators[self.frame]
+                and event.creator not in self.cheater_list
             ):
                 forkless_cause_current_frame = self.forkless_cause_quorum(
                     event, self.quorum(self.frame), self.frame
@@ -131,6 +139,7 @@ class Lachesis:
             elif (
                 self.frame > 1
                 and event.creator not in self.root_set_validators[self.frame]
+                and event.creator not in self.cheater_list
             ):
                 forkless_cause_previous_frame = self.forkless_cause_quorum(
                     event, self.quorum(self.frame - 1), self.frame - 1
@@ -143,6 +152,9 @@ class Lachesis:
             return False, None
 
     def process_event(self, event, node):
+        if event.creator in self.cheater_list:
+            return
+
         self.highest_events_observed_by_event(event)
         self.set_lowest_events_vector(event)
         self.detect_forks(event)
@@ -326,15 +338,6 @@ class Lachesis:
                 (dest[0], self.local_dag.nodes[dest]["timestamp"]),
             )
 
-        node_colors = {}
-        for node in timestamp_dag.nodes:
-            frame = timestamp_dag.nodes[node]["frame"]
-            node_colors[node] = colors[frame % len(colors)]
-            if node in root_set_nodes_new:
-                node_colors[node] = darker_colors[root_set_nodes_new[node] % 5]
-            if node in atropos_roots_new:
-                node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
-
         pos = {}
         num_nodes = len(self.validator_weights)
         num_levels = max([node[1] for node in timestamp_dag.nodes])
@@ -352,16 +355,27 @@ class Lachesis:
                 node = (chr(i + 65), j)
                 pos[node] = (j, i)
 
+        # Remove cheater nodes from the timestamp_dag
+        cheater_nodes = [
+            (validator, timestamp)
+            for validator, timestamp in timestamp_dag.nodes
+            if validator in self.cheater_list
+        ]
+        timestamp_dag.remove_nodes_from(cheater_nodes)
+
         labels = {
-            (chr(i + 65), j): (
-                chr(i + 65),
-                j,
-                timestamp_dag.nodes.get((chr(i + 65), j), {}).get("seq"),
-            )
-            for i in range(num_nodes)
-            for j in range(num_levels + 1)
-            if (chr(i + 65), j) in timestamp_dag.nodes
+            node: (node[0], node[1], timestamp_dag.nodes[node]["seq"])
+            for node in timestamp_dag.nodes
         }
+
+        node_colors = {}
+        for node in timestamp_dag.nodes:
+            frame = timestamp_dag.nodes[node]["frame"]
+            node_colors[node] = colors[frame % len(colors)]
+            if node in root_set_nodes_new:
+                node_colors[node] = darker_colors[root_set_nodes_new[node] % 5]
+            if node in atropos_roots_new:
+                node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
 
         nx.draw(
             timestamp_dag,
@@ -406,7 +420,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    input_graphs_directory = "../inputs/graphs/graph_*.txt"
+    input_graphs_directory = "../inputs/graphs_with_cheaters/graph_*.txt"
     file_list = glob.glob(input_graphs_directory)
 
     print("file count", len(file_list))
@@ -418,6 +432,6 @@ if __name__ == "__main__":
         graph_name = base_filename[
             base_filename.index("_") + 1 : base_filename.index(".txt")
         ]
-        output_filename = f"../inputs/results/result_{graph_name}"
+        output_filename = f"../inputs/results_with_cheaters/result_{graph_name}"
         lachesis_state = Lachesis()
         lachesis_state.run_lachesis(input_filename, output_filename)
