@@ -52,6 +52,8 @@ class Lachesis:
         )
 
     def highest_events_observed_by_event(self, node):
+        if node.creator in self.cheater_list:
+            return
         direct_parent = None
         for parent_id in node.parents:
             parent = self.local_dag.nodes[parent_id]["event"]
@@ -98,6 +100,8 @@ class Lachesis:
         return yes >= self.quorum(self.frame)
 
     def set_lowest_events_vector(self, event):
+        if event.creator in self.cheater_list:
+            return
         self.lowest_events_vector = {}
         parents = deque(event.parents)
 
@@ -419,7 +423,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    input_graphs_directory = "../inputs/graphs/graph_*.txt"
+    input_graphs_directory = "../inputs/graphs_with_cheaters/graph_*.txt"
     file_list = glob.glob(input_graphs_directory)
 
     print("file count", len(file_list))
@@ -431,6 +435,6 @@ if __name__ == "__main__":
         graph_name = base_filename[
             base_filename.index("_") + 1 : base_filename.index(".txt")
         ]
-        output_filename = f"../inputs/results/result_{graph_name}"
+        output_filename = f"../inputs/results_with_cheaters/result_{graph_name}"
         lachesis_state = Lachesis()
         lachesis_state.run_lachesis(input_filename, output_filename)
