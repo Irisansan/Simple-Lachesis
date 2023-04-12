@@ -85,6 +85,8 @@ class Lachesis:
                 self.validator_weights[event.creator] = 0
                 break
 
+    # determine if event_a is forkless_caused by event_b
+    # event_b is the root typically
     def forkless_cause(self, event_a, event_b):
         if event_a.id[0] in self.cheater_list or event_b.id[0] in self.cheater_list:
             return False
@@ -97,7 +99,7 @@ class Lachesis:
             if validator in b and b[validator]["seq"] <= seq:
                 yes += self.validator_weights[validator]
 
-        return yes >= self.quorum(self.frame)
+        return yes >= self.quorum(event_b.frame)
 
     def set_lowest_events_vector(self, event):
         if event.creator in self.cheater_list:
@@ -120,7 +122,7 @@ class Lachesis:
         if event.seq == 1:
             return True, 1
         else:
-            frame_to_add = None
+            frame_to_add_to = None
             if (self.frame == 1 and self.time >= 3) or (
                 self.frame > 1
                 and len(self.root_set_validators[self.frame])
@@ -136,23 +138,23 @@ class Lachesis:
                 and event.creator not in self.cheater_list
             ):
                 forkless_cause_current_frame = self.forkless_cause_quorum(
-                    event, self.quorum(self.frame), self.frame
+                    event, self.frame
                 )
                 if forkless_cause_current_frame:
-                    frame_to_add = self.frame + 1
+                    frame_to_add_to = self.frame + 1
             elif (
                 self.frame > 1
                 and event.creator not in self.root_set_validators[self.frame]
                 and event.creator not in self.cheater_list
             ):
                 forkless_cause_previous_frame = self.forkless_cause_quorum(
-                    event, self.quorum(self.frame - 1), self.frame - 1
+                    event, self.frame - 1
                 )
                 if forkless_cause_previous_frame:
-                    frame_to_add = self.frame
+                    frame_to_add_to = self.frame
 
-            if frame_to_add is not None:
-                return True, frame_to_add
+            if frame_to_add_to is not None:
+                return True, frame_to_add_to
             return False, None
 
     def process_event(self, event, node):
@@ -171,6 +173,7 @@ class Lachesis:
                 self.root_set_nodes[target_frame] = SortedSet()
 
             self.frame = target_frame
+            event.frame = target_frame
 
             if self.frame not in self.root_set_validators:
                 self.root_set_validators[self.frame] = SortedSet()
@@ -182,8 +185,6 @@ class Lachesis:
 
             self.atropos_voting(event.id)
 
-        if is_root:
-            event.frame = target_frame
         else:
             direct_child_seq = event.seq - 1
             direct_child = self.local_dag.nodes.get(
@@ -191,19 +192,17 @@ class Lachesis:
             )
             if direct_child:
                 event.frame = direct_child["event"].frame
-            else:
-                event.frame = 1
 
-    def forkless_cause_quorum(self, event, quorum, frame_number):
+    def forkless_cause_quorum(self, event, frame_number):
         forkless_cause_count = 0
-        current_frame_roots = self.root_set_nodes[frame_number]
+        frame_roots = self.root_set_nodes[frame_number]
 
-        for root in current_frame_roots:
+        for root in frame_roots:
             root_event = self.local_dag.nodes[root]["event"]
             if self.forkless_cause(event, root_event):
                 forkless_cause_count += self.validator_weights[root_event.creator]
 
-        return forkless_cause_count >= quorum
+        return forkless_cause_count >= self.quorum(frame_number)
 
     def atropos_voting(self, new_root):
         candidates = self.root_set_nodes[self.frame_to_decide]
@@ -423,7 +422,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    input_graphs_directory = "../inputs/graphs_with_cheaters/graph_*.txt"
+    input_graphs_directory = "../inputs/graphs/graph_*.txt"
     file_list = glob.glob(input_graphs_directory)
 
     print("file count", len(file_list))
@@ -435,6 +434,6 @@ if __name__ == "__main__":
         graph_name = base_filename[
             base_filename.index("_") + 1 : base_filename.index(".txt")
         ]
-        output_filename = f"../inputs/results_with_cheaters/result_{graph_name}"
+        output_filename = f"../inputs/results/result_{graph_name}"
         lachesis_state = Lachesis()
         lachesis_state.run_lachesis(input_filename, output_filename)
