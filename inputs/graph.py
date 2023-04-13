@@ -302,27 +302,28 @@ def generate_graphs(
     cheater_input = float(cheater_input) if cheater_input else 0.2
     level_input = (
         int(level_input)
-        if level_input and level_input.lower() not in ["r", "random"]
+        if level_input and str(level_input).lower() not in ["r", "random"]
         else None
     )
     node_input = (
         int(node_input)
-        if node_input and node_input.lower() not in ["r", "random"]
+        if node_input and str(node_input).lower() not in ["r", "random"]
         else None
     )
     present_prob_input = (
         float(present_prob_input)
-        if present_prob_input and present_prob_input.lower() not in ["r", "random"]
+        if present_prob_input and str(present_prob_input).lower() not in ["r", "random"]
         else None
     )
     observe_prob_input = (
         float(observe_prob_input)
-        if observe_prob_input and observe_prob_input.lower() not in ["r", "random"]
+        if observe_prob_input and str(observe_prob_input).lower() not in ["r", "random"]
         else None
     )
     neighbor_prob_input = (
         float(neighbor_prob_input)
-        if neighbor_prob_input and neighbor_prob_input.lower() not in ["r", "random"]
+        if neighbor_prob_input
+        and str(neighbor_prob_input).lower() not in ["r", "random"]
         else None
     )
 
