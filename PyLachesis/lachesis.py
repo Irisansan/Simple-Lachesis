@@ -37,6 +37,7 @@ class Lachesis:
         self.timestep_nodes = []
         self.decided_roots = {}
         self.atropos_roots = {}
+        self.last_validator_sequence = {}
 
     def quorum(self, frame_number):
         return (
@@ -78,12 +79,16 @@ class Lachesis:
                 node.highest_events_observed_by_event[target.creator] = target.seq
 
     def detect_forks(self, event):
-        for parent_id in event.parents:
-            parent = self.local_dag.nodes[parent_id]["event"]
-            if parent.creator == event.creator and parent.seq == event.seq:
-                self.cheater_list.add(event.creator)
-                self.validator_weights[event.creator] = 0
-                break
+        validator = event.creator
+        seq = event.seq
+
+        if validator not in self.last_validator_sequence:
+            self.last_validator_sequence[validator] = seq
+        elif self.last_validator_sequence[validator] < seq:
+            self.last_validator_sequence[validator] = seq
+        else:
+            self.cheater_list.add(validator)
+            self.validator_weights[validator] = 0
 
     # determine if event_a is forkless_caused by event_b
     # event_b is the root typically
@@ -157,7 +162,7 @@ class Lachesis:
                 return True, frame_to_add_to
             return False, None
 
-    def process_event(self, event, node):
+    def process_event(self, event):
         if event.creator in self.cheater_list:
             return
 
@@ -172,16 +177,14 @@ class Lachesis:
             if target_frame not in self.root_set_nodes:
                 self.root_set_nodes[target_frame] = SortedSet()
 
-            self.frame = target_frame
             event.frame = target_frame
+            self.local_dag.nodes[event.id]["event"].frame = target_frame
 
-            if self.frame not in self.root_set_validators:
-                self.root_set_validators[self.frame] = SortedSet()
-            if self.frame not in self.root_set_nodes:
-                self.root_set_nodes[self.frame] = SortedSet()
+            self.frame = target_frame
 
-            self.root_set_validators[target_frame].add(event.creator)
-            self.root_set_nodes[target_frame].add(event.id)
+            if event.creator not in self.cheater_list:
+                self.root_set_validators[target_frame].add(event.creator)
+                self.root_set_nodes[target_frame].add(event.id)
 
             self.atropos_voting(event.id)
 
@@ -282,7 +285,7 @@ class Lachesis:
                     timestamp=timestamp,
                 )
 
-                self.process_event(event, node)
+                self.process_event(event)
 
                 successors = graph.successors((validator, timestamp))
                 for successor in successors:
@@ -373,7 +376,10 @@ class Lachesis:
         node_colors = {}
         for node in timestamp_dag.nodes:
             frame = timestamp_dag.nodes[node]["frame"]
-            node_colors[node] = colors[frame % len(colors)]
+            if frame:
+                node_colors[node] = colors[frame % len(colors)]
+            else:
+                node_colors[node] = "black"
             if node in root_set_nodes_new:
                 node_colors[node] = darker_colors[root_set_nodes_new[node] % 5]
             if node in atropos_roots_new:
@@ -422,7 +428,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    input_graphs_directory = "../inputs/graphs/graph_*.txt"
+    input_graphs_directory = "../inputs/graphs_with_cheaters/graph_*.txt"
     file_list = glob.glob(input_graphs_directory)
 
     print("file count", len(file_list))
@@ -434,6 +440,6 @@ if __name__ == "__main__":
         graph_name = base_filename[
             base_filename.index("_") + 1 : base_filename.index(".txt")
         ]
-        output_filename = f"../inputs/results/result_{graph_name}"
+        output_filename = f"../inputs/results_with_cheaters/result_{graph_name}"
         lachesis_state = Lachesis()
         lachesis_state.run_lachesis(input_filename, output_filename)

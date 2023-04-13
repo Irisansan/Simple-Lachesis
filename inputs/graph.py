@@ -350,9 +350,9 @@ if __name__ == "__main__":
         else:
             observing_probability = observe_prob_input
 
-        graph_filename = f"graphs/graph_{i+1}.pdf"
-        txt_filename_format_one = f"graphs/graph_{i+1}.txt"
-        txt_filename_format_two = f"graphs/events_{i+1}.txt"
+        graph_filename = f"graphs_with_cheaters/graph_{i+51}.pdf"
+        txt_filename_format_one = f"graphs_with_cheaters/graph_{i+51}.txt"
+        txt_filename_format_two = f"graphs_with_cheaters/events_{i+51}.txt"
         createGraph(
             cheater_input,
             num_levels,
