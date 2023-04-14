@@ -27,7 +27,14 @@ def automate_lachesis(input_dir, output_dir, create_graph=False):
         )
 
 
-automate_lachesis("graphs_with_networks", "results_with_networks", True)
+print("automating lachesis runs...")
+print()
+
 automate_lachesis(
-    "graphs_with_networks_and_cheaters", "results_with_networks_and_cheaters", True
+    "../inputs/graphs_with_networks", "../inputs/results_with_networks", True
+)
+automate_lachesis(
+    "../inputs/graphs_with_networks_and_cheaters",
+    "../inputs/results_with_networks_and_cheaters",
+    True,
 )

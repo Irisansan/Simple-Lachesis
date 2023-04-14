@@ -45,6 +45,10 @@ parameters_list = [
 
 total_graphs = sum([p[2] for p in parameters_list])
 
+print()
+print("automating graphing...")
+print()
+
 with tqdm(total=total_graphs, desc="Progress", unit="graph") as progress_bar:
     for parameters in parameters_list:
         (
