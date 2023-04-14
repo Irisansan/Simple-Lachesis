@@ -64,7 +64,9 @@ def createGraph(
     # Save neighbors dictionary to a file
     with open(neighbor_filename, "w") as f:
         for key, values in neighbors.items():
-            f.write(f"{key}: {', '.join(str(value) for value in values)}\n")
+            f.write(
+                f"{chr(key + 65)}: {', '.join(chr(value + 65) for value in values)}\n"
+            )
 
     # Add nodes and assign colors
     colors = [
