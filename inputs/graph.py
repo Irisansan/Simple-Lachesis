@@ -45,13 +45,21 @@ def createGraph(
             neighbors[node1] = set()
 
         if not neighbors[node1]:
-            node2 = random.choice(list(unconnected_nodes.difference({node1})))
-            unconnected_nodes.remove(node2)
+            available_nodes = unconnected_nodes.difference({node1})
+            if not available_nodes:
+                available_nodes = (
+                    set(range(num_nodes))
+                    .difference({node1})
+                    .difference(neighbors[node1])
+                )
+            node2 = random.choice(list(available_nodes))
+
             if node2 not in neighbors:
                 neighbors[node2] = set()
 
             neighbors[node1].add(node2)
             neighbors[node2].add(node1)
+            unconnected_nodes.discard(node2)
 
     # Save neighbors dictionary to a file
     with open(neighbor_filename, "w") as f:
