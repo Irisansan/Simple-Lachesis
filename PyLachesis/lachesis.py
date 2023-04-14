@@ -410,10 +410,11 @@ class Lachesis:
         )
         plt.close()
 
-    def run_lachesis(self, graph_file, output_file):
+    def run_lachesis(self, graph_file, output_file, create_graph=False):
         G = convert_input_to_DAG(graph_file)
         self.process_graph_by_timesteps(G)
-        self.graph_results(output_file)
+        if create_graph:
+            self.graph_results(output_file)
 
         return {
             "graph": graph_file,
@@ -425,21 +426,3 @@ class Lachesis:
             "root_set_validators": self.root_set_validators,
             "election_votes": self.election_votes,
         }
-
-
-if __name__ == "__main__":
-    input_graphs_directory = "../inputs/graphs_with_cheaters/graph_*.txt"
-    file_list = glob.glob(input_graphs_directory)
-
-    print("file count", len(file_list))
-
-    for i, input_filename in tqdm(
-        enumerate(file_list), total=len(file_list), desc="Processing files"
-    ):
-        base_filename = os.path.basename(input_filename)
-        graph_name = base_filename[
-            base_filename.index("_") + 1 : base_filename.index(".txt")
-        ]
-        output_filename = f"../inputs/results_with_cheaters/result_{graph_name}"
-        lachesis_state = Lachesis()
-        lachesis_state.run_lachesis(input_filename, output_filename)
