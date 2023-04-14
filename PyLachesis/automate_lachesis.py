@@ -3,6 +3,9 @@ import os
 from tqdm import tqdm
 from lachesis import Lachesis
 
+print("automating lachesis runs...")
+print()
+
 
 def automate_lachesis(input_dir, output_dir, create_graph=False):
     input_graphs_directory = os.path.join(input_dir, "graph_*.txt")
@@ -26,9 +29,6 @@ def automate_lachesis(input_dir, output_dir, create_graph=False):
             input_filename, output_filename, create_graph
         )
 
-
-print("automating lachesis runs...")
-print()
 
 automate_lachesis(
     "../inputs/graphs_with_networks", "../inputs/results_with_networks", True

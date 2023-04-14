@@ -1,9 +1,9 @@
 #!/bin/bash
-
 set -eou pipefail
 
 python3 automate_graphing.py
 cd ../PyLachesis
+pwd
 python3 automate_lachesis.py
 cd ../
 git add . 
