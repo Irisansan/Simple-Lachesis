@@ -36,6 +36,23 @@ def createGraph(
                 neighbors[i].add(j)
                 neighbors[j].add(i)
 
+    # Ensure each node has at least one neighbor
+    unconnected_nodes = set(range(num_nodes))
+    while unconnected_nodes:
+        node1 = random.choice(list(unconnected_nodes))
+        unconnected_nodes.remove(node1)
+        if node1 not in neighbors:
+            neighbors[node1] = set()
+
+        if not neighbors[node1]:
+            node2 = random.choice(list(unconnected_nodes.difference({node1})))
+            unconnected_nodes.remove(node2)
+            if node2 not in neighbors:
+                neighbors[node2] = set()
+
+            neighbors[node1].add(node2)
+            neighbors[node2].add(node1)
+
     # Save neighbors dictionary to a file
     with open(neighbor_filename, "w") as f:
         for key, values in neighbors.items():

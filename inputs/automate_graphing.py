@@ -2,11 +2,11 @@ from tqdm import tqdm
 from graph import generate_graphs
 
 parameters_list = [
-    ("graphs_with_adjacency_matrices", "y", 25, 1, 50, 4, 0.65, 0.35, 0.6, 0),
-    ("graphs_with_adjacency_matrices", "y", 25, 26, 50, 5, 0.65, 0.35, 0.6, 0),
-    ("graphs_with_adjacency_matrices", "y", 50, 51, "r", "r", 0.65, 0.35, 0.6, 0),
+    ("graphs_with_networks", "y", 25, 1, 50, 4, 0.65, 0.35, 0.6, 0),
+    ("graphs_with_networks", "y", 25, 26, 50, 5, 0.65, 0.35, 0.6, 0),
+    ("graphs_with_networks", "y", 50, 51, "r", "r", 0.65, 0.35, 0.6, 0),
     (
-        "graphs_with_adjacency_matrices_and_cheaters",
+        "graphs_with_networks_and_cheaters",
         "y",
         25,
         1,
@@ -18,7 +18,7 @@ parameters_list = [
         0.25,
     ),
     (
-        "graphs_with_adjacency_matrices_and_cheaters",
+        "graphs_with_networks_and_cheaters",
         "y",
         25,
         26,
@@ -30,7 +30,7 @@ parameters_list = [
         0.25,
     ),
     (
-        "graphs_with_adjacency_matrices_and_cheaters",
+        "graphs_with_networks_and_cheaters",
         "y",
         50,
         51,
