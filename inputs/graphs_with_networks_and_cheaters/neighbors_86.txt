@@ -1,7 +1,13 @@
-0: 5, 6
-5: 0, 1, 3, 4, 7
-6: 0, 1, 3, 7
-1: 4, 5, 6, 7
-4: 1, 3, 5, 7
-7: 1, 3, 4, 5, 6
-3: 4, 5, 6, 7
+A: D, E, F, G, H, I, J, L
+D: A, G, H, I, L
+E: A, F, H, I, J, K, L
+F: A, B, C, E, H, I, L
+G: A, B, C, D, H, J, M
+H: A, C, D, E, F, G, I, J, K, M
+I: A, B, C, D, E, F, H, K, L, M
+J: A, B, C, E, G, H, K, L
+L: A, B, C, D, E, F, I, J
+B: C, F, G, I, J, L, M
+C: B, F, G, H, I, J, K, L, M
+M: B, C, G, H, I
+K: C, E, H, I, J

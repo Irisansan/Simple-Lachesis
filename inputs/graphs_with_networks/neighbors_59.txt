@@ -1,14 +1,19 @@
-0: 1, 3, 4, 5, 6, 7, 9, 11, 12
-1: 0, 3, 4, 5, 8, 9, 12
-3: 0, 1, 2, 4
-4: 0, 1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 12, 13
-5: 0, 1, 4, 7, 8, 11
-6: 0, 2, 4, 8, 13
-7: 0, 2, 4, 5, 9, 10, 11, 12, 13
-9: 0, 1, 2, 4, 7, 8, 10, 11, 12
-11: 0, 4, 5, 7, 9, 10, 12
-12: 0, 1, 4, 7, 8, 9, 11
-8: 1, 2, 4, 5, 6, 9, 10, 12, 13
-2: 3, 4, 6, 7, 8, 9, 13
-13: 2, 4, 6, 7, 8, 10
-10: 4, 7, 8, 9, 11, 13
+A: B, D, E, F, G, I, K, N, O, Q, R, S
+B: A, E, F, H, I, J, M, O, P, Q, S
+D: A, C, E, G, H, J, K, P
+E: A, B, D, F, L, M, P, R
+F: A, B, C, E, H, J, O, P, Q, R, S
+G: A, C, D, H, K, M, N, Q
+I: A, B, C, H, J, K, L, N, P, Q, S
+K: A, D, G, I, L, N, P, Q, R, S
+N: A, C, G, H, I, K, L, M, O, Q, R, S
+O: A, B, C, F, H, J, M, N, R
+Q: A, B, C, F, G, H, I, J, K, N, P, R, S
+R: A, E, F, H, K, L, N, O, P, Q, S
+S: A, B, C, F, I, K, L, M, N, P, Q, R
+H: B, C, D, F, G, I, J, L, N, O, P, Q, R
+J: B, D, F, H, I, O, Q
+M: B, C, E, G, L, N, O, P, S
+P: B, D, E, F, H, I, K, L, M, Q, R, S
+C: D, F, G, H, I, M, N, O, Q, S
+L: E, H, I, K, M, N, P, R, S
