@@ -326,7 +326,9 @@ def generate_graphs(
 ):
     annotate = True if annotate_graph.lower() == "y" else False
     num_graphs = int(num_graphs) if num_graphs else 50
-    cheater_input = float(cheater_input) if cheater_input else 0.2
+    cheater_input = (
+        float(cheater_input) if (cheater_input is None or cheater_input == 0) else 0.2
+    )
     level_input = (
         int(level_input)
         if level_input and str(level_input).lower() not in ["r", "random"]
