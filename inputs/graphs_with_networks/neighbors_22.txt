@@ -1,4 +1,4 @@
-A: B, C, D
+A: B
 B: A, C, D
-C: A, B, D
-D: A, B, C
+C: B, D
+D: B, C

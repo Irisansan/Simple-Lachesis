@@ -1,5 +1,5 @@
-A: E
-E: A, C, D
-B: C, D
-C: B, D, E
-D: B, C, E
+A: B, D, E
+B: A, D, E
+D: A, B, C, E
+E: A, B, D
+C: D
