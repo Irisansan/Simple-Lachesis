@@ -9,6 +9,22 @@ import glob
 import os
 
 
+class MessageQueue:
+    def __init__(self):
+        self.queue = deque()
+
+    def enqueue(self, item):
+        self.queue.append(item)
+
+    def dequeue(self):
+        if len(self.queue) < 1:
+            return None
+        return self.queue.popleft()
+
+    def size(self):
+        return len(self.queue)
+
+
 class Event:
     def __init__(self, id, seq, creator, parents, frame=None):
         self.id = id
@@ -38,6 +54,60 @@ class Lachesis:
         self.decided_roots = {}
         self.atropos_roots = {}
         self.last_validator_sequence = {}
+        self.validator = validator
+        self.validator_instances = {}
+        self.event_timestamps = {}
+        self.message_queue = MessageQueue()
+
+    def init_validator_instances(self, validator_instances):
+        self.validator_instances = validator_instances
+
+    def request_event(self, event_id):
+        if event_id in self.local_dag:
+            event = self.local_dag.nodes[event_id]["event"]
+            timestamp = self.event_timestamps.get(event_id)
+            return event, timestamp
+        else:
+            return None, None
+
+    def receive_event(self, event, timestamp):
+        self.message_queue.enqueue((event, timestamp))
+
+    def get_missing_ancestor_events(self, event, missing_ancestors=None):
+        if missing_ancestors is None:
+            missing_ancestors = set()
+
+        for parent_id in event.parents:
+            parent_event, _ = self.validator_instances[parent_id[0]].request_event(
+                parent_id
+            )
+            if parent_event:
+                missing_ancestors.add(parent_event)
+                self.get_missing_ancestor_events(parent_event, missing_ancestors)
+
+        return missing_ancestors
+
+    def process_events(self):
+        while self.message_queue.size() > 0:
+            event, timestamp = self.message_queue.dequeue()
+
+            missing_ancestors = self.get_missing_ancestor_events(event)
+            for ancestor in missing_ancestors:
+                if ancestor.id not in self.local_dag:
+                    validator_instance = self.validator_instances[ancestor.creator]
+                    missing_event, missing_timestamp = validator_instance.request_event(
+                        ancestor.id
+                    )
+                    if missing_event is not None:
+                        self.local_dag.add_node(
+                            missing_event.id,
+                            event=missing_event,
+                            timestamp=missing_timestamp,
+                        )
+                        self.receive_event(missing_event, missing_timestamp)
+
+            self.local_dag.add_node(event.id, event=event, timestamp=timestamp)
+            self.process_event(event)
 
     def quorum(self, frame_number):
         return (
@@ -168,7 +238,7 @@ class Lachesis:
 
         self.highest_events_observed_by_event(event)
         self.set_lowest_events_vector(event)
-        self.detect_forks(event)
+        # self.detect_forks(event)
 
         is_root, target_frame = self.check_for_roots(event)
         if is_root:
@@ -306,6 +376,27 @@ class Lachesis:
         return (r, g, b)
 
     def graph_results(self, output_filename):
+        print(self.frame)
+        print(self.block)
+        print(self.epoch)
+        print(self.root_set_validators)
+        print(self.root_set_nodes)
+        print(self.election_votes)
+        print(self.frame_to_decide)
+        print(self.cheater_list)
+        print(self.validators)
+        print(self.validator_weights)
+        print(self.time)
+        print(self.local_dag)
+        print(self.timestep_nodes)
+        print(self.decided_roots)
+        print(self.atropos_roots)
+        print(self.last_validator_sequence)
+        print(self.validator)
+        print(self.validator_instances)
+        print(self.event_timestamps)
+        print(self.message_queue)
+
         colors = ["orange", "yellow", "blue", "cyan", "purple"]
 
         colors_rgb = [mcolors.to_rgb(color) for color in colors]
@@ -405,9 +496,7 @@ class Lachesis:
             font_weight="bold",
         )
 
-        fig.savefig(
-            output_filename + ".pdf", format="pdf", dpi=300, bbox_inches="tight"
-        )
+        fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
         plt.close()
 
     def run_lachesis(self, graph_file, output_file, create_graph=False):
