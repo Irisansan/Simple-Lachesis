@@ -53,28 +53,22 @@ class Lachesis:
     def highest_events_observed_by_event(self, node):
         if node.creator in self.cheater_list:
             return
-        direct_parent = None
+
         for parent_id in node.parents:
             parent = self.events[parent_id]
-            if parent.creator == node.creator:
-                direct_parent = parent
-                break
-
-        node.highest_events_observed_by_event = (
-            direct_parent.highest_events_observed_by_event.copy()
-            if direct_parent
-            else {}
-        )
-
-        for target_id in node.parents:
-            target = self.events[target_id]
 
             if (
-                (target.creator, target.seq)
-                not in node.highest_events_observed_by_event
-                or target.seq > node.highest_events_observed_by_event[target.creator]
+                parent.creator not in node.highest_events_observed_by_event
+                or parent.seq > node.highest_events_observed_by_event[parent.creator]
             ):
-                node.highest_events_observed_by_event[target.creator] = target.seq
+                node.highest_events_observed_by_event[parent.creator] = parent.seq
+
+            for creator, seq in parent.highest_events_observed_by_event.items():
+                if (
+                    creator not in node.highest_events_observed_by_event
+                    or seq > node.highest_events_observed_by_event[creator]
+                ):
+                    node.highest_events_observed_by_event[creator] = seq
 
     def detect_forks(self, event):
         validator = event.creator
@@ -117,8 +111,7 @@ class Lachesis:
             if event.creator not in parent_vector:
                 parent_vector[event.creator] = {"event_id": event.id, "seq": event.seq}
 
-                if parent.creator != event.creator:
-                    parents.extend(parent.parents)
+                parents.extend(parent.parents)
 
     def check_for_roots(self, event):
         if event.seq == 1:
