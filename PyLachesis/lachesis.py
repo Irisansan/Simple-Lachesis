@@ -1,12 +1,9 @@
 from input_to_dag import convert_input_to_DAG
 from sortedcontainers import SortedSet
 from collections import deque
-from tqdm import tqdm
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import networkx as nx
-import glob
-import os
 
 
 class Event:
@@ -33,7 +30,8 @@ class Lachesis:
         self.validators = set()
         self.validator_weights = {}
         self.time = 0
-        self.local_dag = nx.DiGraph()
+        self.events = {}
+        self.event_timestamps = {}
         self.timestep_nodes = []
         self.decided_roots = {}
         self.atropos_roots = {}
@@ -57,7 +55,7 @@ class Lachesis:
             return
         direct_parent = None
         for parent_id in node.parents:
-            parent = self.local_dag.nodes[parent_id]["event"]
+            parent = self.events[parent_id]
             if parent.creator == node.creator:
                 direct_parent = parent
                 break
@@ -69,7 +67,7 @@ class Lachesis:
         )
 
         for target_id in node.parents:
-            target = self.local_dag.nodes[target_id]["event"]
+            target = self.events[target_id]
 
             if (
                 (target.creator, target.seq)
@@ -109,12 +107,11 @@ class Lachesis:
     def set_lowest_events_vector(self, event):
         if event.creator in self.cheater_list:
             return
-        self.lowest_events_vector = {}
         parents = deque(event.parents)
 
         while parents:
             parent_id = parents.popleft()
-            parent = self.local_dag.nodes[parent_id]["event"]
+            parent = self.events[parent_id]
             parent_vector = parent.lowest_events_vector
 
             if event.creator not in parent_vector:
@@ -178,7 +175,7 @@ class Lachesis:
                 self.root_set_nodes[target_frame] = SortedSet()
 
             event.frame = target_frame
-            self.local_dag.nodes[event.id]["event"].frame = target_frame
+            self.events[event.id].frame = target_frame
 
             self.frame = target_frame
 
@@ -190,18 +187,16 @@ class Lachesis:
 
         else:
             direct_child_seq = event.seq - 1
-            direct_child = self.local_dag.nodes.get(
-                (event.creator, direct_child_seq), None
-            )
+            direct_child = self.events[(event.creator, direct_child_seq)]
             if direct_child:
-                event.frame = direct_child["event"].frame
+                event.frame = direct_child.frame
 
     def forkless_cause_quorum(self, event, frame_number):
         forkless_cause_count = 0
         frame_roots = self.root_set_nodes[frame_number]
 
         for root in frame_roots:
-            root_event = self.local_dag.nodes[root]["event"]
+            root_event = self.events[root]
             if self.forkless_cause(event, root_event):
                 forkless_cause_count += self.validator_weights[root_event.creator]
 
@@ -218,8 +213,8 @@ class Lachesis:
                     vote = {
                         "decided": False,
                         "yes": self.forkless_cause(
-                            self.local_dag.nodes[new_root]["event"],
-                            self.local_dag.nodes[candidate]["event"],
+                            self.events[new_root],
+                            self.events[candidate],
                         ),
                     }
                 elif self.frame >= self.frame_to_decide + 2:
@@ -279,20 +274,10 @@ class Lachesis:
                     ],
                 )
 
-                self.local_dag.add_node(
-                    (validator, seq),
-                    event=event,
-                    timestamp=timestamp,
-                )
+                self.events[event.id] = event
+                self.event_timestamps[event.id] = self.time
 
                 self.process_event(event)
-
-                successors = graph.successors((validator, timestamp))
-                for successor in successors:
-                    successor_seq = graph.nodes.get(successor)["predecessors"]
-                    self.local_dag.add_edge(
-                        (validator, seq), (successor[0], successor_seq)
-                    )
 
             self.time += 1
 
@@ -319,30 +304,33 @@ class Lachesis:
         for key, values in self.root_set_nodes.items():
             for v in values:
                 validator, seq = v
-                timestamp = self.local_dag.nodes[v]["timestamp"]
+                timestamp = self.event_timestamps[v]
                 root_set_nodes_new[(validator, timestamp)] = key
 
         atropos_roots_new = {}
         for key, value in self.atropos_roots.items():
             validator, seq = value
-            timestamp = self.local_dag.nodes[value]["timestamp"]
+            timestamp = self.event_timestamps[value]
             atropos_roots_new[(validator, timestamp)] = key
 
         atropos_colors = ["limegreen", "green"]
 
         timestamp_dag = nx.DiGraph()
 
-        for node, data in self.local_dag.nodes(data=True):
+        for node, data in self.events.items():
             validator, seq = node
-            timestamp = data["timestamp"]
-            frame = data["event"].frame
-            timestamp_dag.add_node((validator, timestamp), seq=seq, frame=frame, **data)
-
-        for src, dest in self.local_dag.edges:
-            timestamp_dag.add_edge(
-                (src[0], self.local_dag.nodes[src]["timestamp"]),
-                (dest[0], self.local_dag.nodes[dest]["timestamp"]),
+            timestamp = self.event_timestamps[node]
+            frame = data.frame
+            weight = self.validator_weights[validator]
+            timestamp_dag.add_node(
+                (validator, timestamp), seq=seq, frame=frame, weight=weight
             )
+            for parent in data.parents:
+                parent_timestamp = self.event_timestamps[parent]
+                timestamp_dag.add_edge(
+                    (validator, timestamp),
+                    (parent[0], parent_timestamp),
+                )
 
         pos = {}
         num_nodes = len(self.validator_weights)
@@ -405,9 +393,7 @@ class Lachesis:
             font_weight="bold",
         )
 
-        fig.savefig(
-            output_filename + ".pdf", format="pdf", dpi=300, bbox_inches="tight"
-        )
+        fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
         plt.close()
 
     def run_lachesis(self, graph_file, output_file, create_graph=False):
@@ -426,3 +412,8 @@ class Lachesis:
             "root_set_validators": self.root_set_validators,
             "election_votes": self.election_votes,
         }
+
+
+if __name__ == "__main__":
+    lachesis_instance = Lachesis()
+    lachesis_instance.run_lachesis("../inputs/graphs/graph_1.txt", "result.pdf", True)
