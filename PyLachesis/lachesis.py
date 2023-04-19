@@ -57,18 +57,20 @@ class Lachesis:
         for parent_id in node.parents:
             parent = self.events[parent_id]
 
-            if (
-                parent.creator not in node.highest_events_observed_by_event
-                or parent.seq > node.highest_events_observed_by_event[parent.creator]
-            ):
-                node.highest_events_observed_by_event[parent.creator] = parent.seq
-
-            for creator, seq in parent.highest_events_observed_by_event.items():
+            if parent.creator not in self.cheater_list:
                 if (
-                    creator not in node.highest_events_observed_by_event
-                    or seq > node.highest_events_observed_by_event[creator]
+                    parent.creator not in node.highest_events_observed_by_event
+                    or parent.seq
+                    > node.highest_events_observed_by_event[parent.creator]
                 ):
-                    node.highest_events_observed_by_event[creator] = seq
+                    node.highest_events_observed_by_event[parent.creator] = parent.seq
+
+                for creator, seq in parent.highest_events_observed_by_event.items():
+                    if (
+                        creator not in node.highest_events_observed_by_event
+                        or seq > node.highest_events_observed_by_event[creator]
+                    ):
+                        node.highest_events_observed_by_event[creator] = seq
 
     def detect_forks(self, event):
         validator = event.creator
@@ -111,7 +113,8 @@ class Lachesis:
             if event.creator not in parent_vector:
                 parent_vector[event.creator] = {"event_id": event.id, "seq": event.seq}
 
-                parents.extend(parent.parents)
+                if event.creator != parent.creator:
+                    parents.extend(parent.parents)
 
     def check_for_roots(self, event):
         if event.seq == 1:
@@ -395,6 +398,23 @@ class Lachesis:
         if create_graph:
             self.graph_results(output_file)
 
+        sorted_events = sorted(
+            self.events.values(), key=lambda e: self.event_timestamps[e.id]
+        )
+
+        # for event in sorted_events:
+        #     print(f"Event ID: {event.id}")
+        #     print(f"  Timestamp: {self.event_timestamps[event.id]}")
+        #     print(f"  Sequence: {event.seq}")
+        #     print(f"  Creator: {event.creator}")
+        #     print(f"  Parents: {event.parents}")
+        #     print(f"  Lowest Events Vector: {event.lowest_events_vector}")
+        #     print(
+        #         f"  Highest Events Observed by Event: {event.highest_events_observed_by_event}"
+        #     )
+        #     print(f"  Frame: {event.frame}")
+        #     print("")
+
         return {
             "graph": graph_file,
             "atropos_roots": self.atropos_roots,
@@ -409,4 +429,6 @@ class Lachesis:
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis("../inputs/graphs/graph_1.txt", "result.pdf", True)
+    lachesis_instance.run_lachesis(
+        "../inputs/graphs_with_cheaters/graph_53.txt", "result.pdf", True
+    )
