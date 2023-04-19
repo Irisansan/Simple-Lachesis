@@ -16,6 +16,15 @@ class LachesisMultiInstance:
         for validator in validators:
             self.instances[validator] = Lachesis()
 
+    def update_validators_and_weights(self, node):
+        validator = node[0][0]
+        weight = node[1]["weight"]
+
+        for instance in self.instances.values():
+            if validator not in instance.validators:
+                instance.validators.add(validator)
+                instance.validator_weights[validator] = weight
+
     def process_graph_by_timesteps(self):
         nodes = sorted(
             self.graph.nodes(data=True), key=lambda node: node[1]["timestamp"]
@@ -30,6 +39,8 @@ class LachesisMultiInstance:
             ]
 
             for node in nodes_to_process:
+                self.update_validators_and_weights(node)
+
                 validator = node[0][0]
                 seq = node[1]["predecessors"]
 
@@ -542,8 +553,8 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    # lachesis_instance = Lachesis()
-    # lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
+    lachesis_instance = Lachesis()
+    lachesis_instance.run_lachesis("../inputs/graphs/graph_2.txt", "result.pdf", True)
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
