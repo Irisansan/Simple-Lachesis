@@ -113,7 +113,10 @@ class Lachesis:
             if event.creator not in parent_vector:
                 parent_vector[event.creator] = {"event_id": event.id, "seq": event.seq}
 
-                if event.creator != parent.creator:
+                if (
+                    event.creator != parent.creator
+                    and parent.creator not in self.cheater_list
+                ):
                     parents.extend(parent.parents)
 
     def check_for_roots(self, event):
