@@ -6,6 +6,72 @@ import matplotlib.pyplot as plt
 import networkx as nx
 
 
+class LachesisMultiInstance:
+    def __init__(self):
+        self.instances = {}
+        self.graph = None
+
+    def initialize_instances(self):
+        validators = set(node[0] for node in self.graph.nodes)
+        for validator in validators:
+            self.instances[validator] = Lachesis()
+
+    def process_graph_by_timesteps(self):
+        nodes = sorted(
+            self.graph.nodes(data=True), key=lambda node: node[1]["timestamp"]
+        )
+        max_timestamp = max([node[1]["timestamp"] for node in nodes])
+
+        for current_time in range(max_timestamp + 1):
+            print()
+            print("current time:", current_time)
+            nodes_to_process = [
+                node for node in nodes if node[1]["timestamp"] == current_time
+            ]
+
+            for node in nodes_to_process:
+                validator = node[0][0]
+                seq = node[1]["predecessors"]
+
+                print("node:", validator, seq)
+
+                event = Event(
+                    id=(validator, seq),
+                    seq=seq,
+                    creator=validator,
+                    parents=[
+                        (parent[0], self.graph.nodes[parent]["predecessors"])
+                        for parent in self.graph.successors((validator, current_time))
+                    ],
+                )
+
+                instance = self.instances[validator]
+                instance.events[event.id] = event
+                instance.event_timestamps[event.id] = current_time
+                instance.defer_event_processing(event, self.instances)
+
+            for instance in self.instances.values():
+                instance.process_request_queue(self.instances)
+
+            for instance in self.instances.values():
+                instance.process_deferred_events()
+
+            for instance in self.instances.values():
+                instance.time += 1
+
+        return self.instances
+
+    def run_lachesis_multi_instance(self, graph_file, output_file, create_graph=False):
+        G = convert_input_to_DAG(graph_file)
+        self.graph = G
+        self.initialize_instances()
+        self.process_graph_by_timesteps()
+
+        if create_graph:
+            first_instance_key = next(iter(self.instances))
+            self.instances[first_instance_key].graph_results(output_file)
+
+
 class Event:
     def __init__(self, id, seq, creator, parents, frame=None):
         self.id = id
@@ -36,6 +102,51 @@ class Lachesis:
         self.decided_roots = {}
         self.atropos_roots = {}
         self.last_validator_sequence = {}
+        self.request_queue = deque()
+        self.process_queue = {}
+
+    def defer_event_processing(self, event, instances):
+        self.process_queue[event.id] = event
+        self.event_timestamps[event.id] = self.time
+        for parent_id in event.parents:
+            if parent_id not in self.events and parent_id not in self.process_queue:
+                parent_instance = instances[parent_id[0]]
+                parent_instance.request_queue.append((event.creator, [parent_id]))
+
+    def process_request_queue(self, instances):
+        while self.request_queue:
+            recipient_id, missing_event_ids = self.request_queue.popleft()
+            recipient_instance = instances[recipient_id]
+            for event_id in missing_event_ids:
+                if (
+                    event_id not in recipient_instance.events
+                    and event_id not in recipient_instance.process_queue
+                ):
+                    missing_event = self.events[event_id]
+                    missing_event_timestamp = self.event_timestamps[event_id]
+                    recipient_instance.events[event_id] = missing_event
+                    recipient_instance.event_timestamps[
+                        event_id
+                    ] = missing_event_timestamp
+                    recipient_instance.process_queue[event_id] = missing_event
+
+                    for parent_id in missing_event.parents:
+                        if (
+                            parent_id not in recipient_instance.events
+                            and parent_id not in recipient_instance.process_queue
+                        ):
+                            self.request_queue.append((recipient_id, [parent_id]))
+
+    def process_deferred_events(self):
+        sorted_process_queue = sorted(
+            self.process_queue.items(), key=lambda x: self.event_timestamps[x[0]]
+        )
+
+        for event_id, event in sorted_process_queue:
+            self.events[event.id] = event
+            print(self.events)
+            self.process_event(event)
+            del self.process_queue[event_id]
 
     def quorum(self, frame_number):
         return (
@@ -431,7 +542,10 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_53.txt", "result.pdf", True
+    # lachesis_instance = Lachesis()
+    # lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
+
+    lachesis_multiinstance = LachesisMultiInstance()
+    lachesis_multiinstance.run_lachesis_multi_instance(
+        "../inputs/graphs/graph_2.txt", "result_multiinstance.pdf", True
     )
