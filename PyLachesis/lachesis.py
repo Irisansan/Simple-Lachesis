@@ -32,8 +32,8 @@ class LachesisMultiInstance:
         max_timestamp = max([node[1]["timestamp"] for node in nodes])
 
         for current_time in range(max_timestamp + 1):
-            print()
-            print("current time:", current_time)
+            # print()
+            # print("current time:", current_time)
             nodes_to_process = [
                 node for node in nodes if node[1]["timestamp"] == current_time
             ]
@@ -44,7 +44,7 @@ class LachesisMultiInstance:
                 validator = node[0][0]
                 seq = node[1]["predecessors"]
 
-                print("node:", validator, seq)
+                # print("node:", validator, seq)
 
                 event = Event(
                     id=(validator, seq),
@@ -93,6 +93,11 @@ class Event:
         self.highest_events_observed_by_event = {}
         self.frame = frame
 
+    def copy_basic_properties(self):
+        return Event(
+            id=self.id, seq=self.seq, creator=self.creator, parents=self.parents
+        )
+
 
 class Lachesis:
     def __init__(self, validator=None):
@@ -133,7 +138,7 @@ class Lachesis:
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
                 ):
-                    missing_event = self.events[event_id]
+                    missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
                     recipient_instance.events[event_id] = missing_event
                     recipient_instance.event_timestamps[
@@ -154,8 +159,7 @@ class Lachesis:
         )
 
         for event_id, event in sorted_process_queue:
-            self.events[event.id] = event
-            print(self.events)
+            # print(self.events)
             self.process_event(event)
             del self.process_queue[event_id]
 
@@ -554,9 +558,9 @@ class Lachesis:
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis("../inputs/graphs/graph_2.txt", "result.pdf", True)
+    lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs/graph_2.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
     )
