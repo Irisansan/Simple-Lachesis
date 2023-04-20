@@ -30,15 +30,15 @@ def automate_lachesis(input_dir, output_dir, create_graph=False):
         )
 
 
-automate_lachesis("../inputs/graphs", "../inputs/results", True)
+# automate_lachesis("../inputs/graphs", "../inputs/results", True)
 automate_lachesis(
     "../inputs/graphs_with_cheaters", "../inputs/results_with_cheaters", True
 )
-automate_lachesis(
-    "../inputs/graphs_with_networks",
-    "../inputs/results_with_networks",
-    True,
-)
+# automate_lachesis(
+#     "../inputs/graphs_with_networks",
+#     "../inputs/results_with_networks",
+#     True,
+# )
 automate_lachesis(
     "../inputs/graphs_with_networks_and_cheaters",
     "../inputs/results_with_networks_and_cheaters",

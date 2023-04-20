@@ -15,7 +15,17 @@ class LachesisMultiInstance:
     def initialize_instances(self):
         validators = set(node[0] for node in self.graph.nodes)
         for validator in validators:
-            self.instances[validator] = Lachesis()
+            self.instances[validator] = Lachesis(validator)
+            self.instances[validator].validator_weights = {
+                v: self.graph.nodes[
+                    min(
+                        (node for node in self.graph.nodes if node[0] == v),
+                        key=lambda node: self.graph.nodes[node]["timestamp"],
+                    )
+                ]["weight"]
+                for v in validators
+            }
+            self.instances[validator].root_set_validators[1] = validators.copy()
 
     def update_validators_and_weights(self, node):
         validator = node[0][0]
@@ -82,8 +92,9 @@ class LachesisMultiInstance:
         self.process_graph_by_timesteps()
 
         if create_graph:
-            first_instance_key = next(iter(self.instances))
-            self.instances[first_instance_key].graph_results(output_file)
+            for instance in self.instances.values():
+                output_file_validator = instance.validator + "_" + output_file
+                instance.graph_results(output_file_validator)
 
 
 class Event:
@@ -112,6 +123,7 @@ class Lachesis:
         self.election_votes = {}
         self.frame_to_decide = 1
         self.cheater_list = set()
+        self.validator = validator
         self.validators = set()
         self.validator_weights = {}
         self.time = 0
@@ -123,6 +135,19 @@ class Lachesis:
         self.last_validator_sequence = {}
         self.request_queue = deque()
         self.process_queue = {}
+
+    def single_instance_initialize(self, graph):
+        validators = set(node[0] for node in graph.nodes)
+        self.root_set_validators[1] = validators
+        self.validator_weights = {
+            v: graph.nodes[
+                min(
+                    (node for node in graph.nodes if node[0] == v),
+                    key=lambda node: graph.nodes[node]["timestamp"],
+                )
+            ]["weight"]
+            for v in validators
+        }
 
     def defer_event_processing(self, event, instances):
         self.process_queue[event.id] = event
@@ -253,16 +278,19 @@ class Lachesis:
             return True, 1
         else:
             frame_to_add_to = None
-            if (self.frame == 1 and self.time >= 3) or (
-                self.frame > 1
-                and len(self.root_set_validators[self.frame])
-                >= len(self.root_set_validators[self.frame - 1])
-                - len(
-                    [
-                        v
-                        for v in self.root_set_validators[self.frame - 1]
-                        if v in self.cheater_list
-                    ]
+            if (
+                (self.frame == 1)
+                or (
+                    self.frame > 1
+                    and len(self.root_set_validators[self.frame])
+                    >= len(self.root_set_validators[self.frame - 1])
+                    - len(
+                        [
+                            v
+                            for v in self.root_set_validators[self.frame - 1]
+                            if v in self.cheater_list
+                        ]
+                    )
                 )
                 and event.creator in self.root_set_validators[self.frame]
                 and event.creator not in self.cheater_list
@@ -377,6 +405,7 @@ class Lachesis:
     def process_graph_by_timesteps(self, graph):
         nodes = sorted(graph.nodes(data=True), key=lambda node: node[1]["timestamp"])
         max_timestamp = max([node[1]["timestamp"] for node in nodes])
+        self.single_instance_initialize(graph)
 
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
@@ -565,7 +594,7 @@ if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
 
-    # lachesis_multiinstance = LachesisMultiInstance()
-    # lachesis_multiinstance.run_lachesis_multi_instance(
-    #     "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
-    # )
+    lachesis_multiinstance = LachesisMultiInstance()
+    lachesis_multiinstance.run_lachesis_multi_instance(
+        "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
+    )
