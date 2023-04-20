@@ -16,6 +16,7 @@ class LachesisMultiInstance:
         validators = set(node[0] for node in self.graph.nodes)
         for validator in validators:
             self.instances[validator] = Lachesis(validator)
+            self.instances[validator].validators = validators.copy()
             self.instances[validator].validator_weights = {
                 v: self.graph.nodes[
                     min(
@@ -52,7 +53,7 @@ class LachesisMultiInstance:
             random.shuffle(nodes_to_process)
 
             for node in nodes_to_process:
-                self.update_validators_and_weights(node)
+                # self.update_validators_and_weights(node)
 
                 validator = node[0][0]
                 seq = node[1]["predecessors"]
@@ -91,10 +92,60 @@ class LachesisMultiInstance:
         self.initialize_instances()
         self.process_graph_by_timesteps()
 
+        target_validators = ["A", "C", "E", "I", "O"]
+        target_times = [40, 41]
+        target_nodes = [
+            (validator, time)
+            for validator in target_validators
+            for time in target_times
+        ]
+
         if create_graph:
             for instance in self.instances.values():
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
+
+                if instance.validator in target_validators:
+                    print(f"Validator {instance.validator}'s event information:")
+                    for node_key in target_nodes:
+                        node = self.graph.nodes.get(node_key)
+                        if node:
+                            event_id = (node_key[0], node["predecessors"])
+                            event = instance.events.get(event_id)
+                            if event:
+                                print(f"Node: {event_id} ({node_key})")
+                                print(f"  Event ID: {event.id}")
+                                print(f"  Sequence: {event.seq}")
+                                print(f"  Creator: {event.creator}")
+                                print(f"  Parents: {event.parents}")
+                                print(f"  Frame: {event.frame}")
+
+                                sorted_lowest_events_vector = {
+                                    key: value
+                                    for key, value in sorted(
+                                        event.lowest_events_vector.items(),
+                                        key=lambda x: (x[0], x[1]["event_id"][0]),
+                                    )
+                                }
+                                print(
+                                    f"  Lowest events vector: {sorted_lowest_events_vector}"
+                                )
+
+                                sorted_highest_events_observed_by_event = {
+                                    key: value
+                                    for key, value in sorted(
+                                        event.highest_events_observed_by_event.items()
+                                    )
+                                }
+                                print(
+                                    f"  Highest events observed by event: {sorted_highest_events_observed_by_event}"
+                                )
+
+                        else:
+                            print(
+                                f"Node {node_key} not found in LachesisMultiInstance.graph"
+                            )
+                    print("\n")
 
 
 class Event:
@@ -183,7 +234,8 @@ class Lachesis:
 
     def process_deferred_events(self):
         sorted_process_queue = sorted(
-            self.process_queue.items(), key=lambda x: self.event_timestamps[x[0]]
+            self.process_queue.items(),
+            key=lambda x: (self.event_timestamps[x[0]], x[0]),
         )
 
         for event_id, event in sorted_process_queue:
