@@ -1,3 +1,4 @@
+import random
 from input_to_dag import convert_input_to_DAG
 from sortedcontainers import SortedSet
 from collections import deque
@@ -37,6 +38,8 @@ class LachesisMultiInstance:
             nodes_to_process = [
                 node for node in nodes if node[1]["timestamp"] == current_time
             ]
+
+            random.shuffle(nodes_to_process)
 
             for node in nodes_to_process:
                 self.update_validators_and_weights(node)
@@ -380,6 +383,8 @@ class Lachesis:
                 node for node in nodes if node[1]["timestamp"] == current_time
             ]
 
+            random.shuffle(nodes_to_process)
+
             for node in nodes_to_process:
                 validator = node[0][0]
                 timestamp = node[0][1]
@@ -560,7 +565,7 @@ if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
 
-    lachesis_multiinstance = LachesisMultiInstance()
-    lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
-    )
+    # lachesis_multiinstance = LachesisMultiInstance()
+    # lachesis_multiinstance.run_lachesis_multi_instance(
+    #     "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
+    # )
