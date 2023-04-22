@@ -35,6 +35,7 @@ class LachesisMultiInstance:
         validator = node[0][0]
         weight = node[1]["weight"]
 
+        # assume new nodes broadcast their existence
         for instance in self.instances.values():
             if validator not in instance.validators:
                 instance.validators.add(validator)
@@ -105,7 +106,7 @@ class Event:
         self.highest_events_observed_by_event = {}
         self.frame = frame
 
-    # the rest of properties are consensus mechanism dependent
+    # the rest of the properties are consensus mechanism dependent
     def copy_basic_properties(self):
         return Event(
             id=self.id, seq=self.seq, creator=self.creator, parents=self.parents
@@ -137,8 +138,12 @@ class Lachesis:
         self.quorum_values = {}
 
     def defer_event_processing(self, event, instances):
-        self.process_queue[event.id] = event
+        if event.id not in self.process_queue:
+            self.process_queue[event.id] = []
+
+        self.process_queue[event.id].append(event)
         self.event_timestamps[event.id] = self.time
+
         for parent_id in event.parents:
             if parent_id not in self.events and parent_id not in self.process_queue:
                 parent_instance = instances[parent_id[0]]
@@ -153,13 +158,18 @@ class Lachesis:
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
                 ):
+                    print(self.validator)
+
                     missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
-                    recipient_instance.events[event_id] = missing_event
+
+                    if event_id not in recipient_instance.process_queue:
+                        recipient_instance.process_queue[event_id] = []
+
+                    recipient_instance.process_queue[event_id].append(missing_event)
                     recipient_instance.event_timestamps[
                         event_id
                     ] = missing_event_timestamp
-                    recipient_instance.process_queue[event_id] = missing_event
 
                     for parent_id in missing_event.parents:
                         if (
@@ -174,8 +184,9 @@ class Lachesis:
             key=lambda x: (self.event_timestamps[x[0]], x[0]),
         )
 
-        for event_id, event in sorted_process_queue:
-            self.process_event(event)
+        for event_id, events in sorted_process_queue:
+            for event in events:
+                self.process_event(event)
             del self.process_queue[event_id]
 
     def quorum(self, frame_number):
@@ -280,6 +291,8 @@ class Lachesis:
         self.highest_events_observed_by_event(event)
         self.set_lowest_events_vector(event)
         self.detect_forks(event)
+
+        print(self.validator)
 
         is_root, target_frame = self.check_for_roots(event)
         if is_root:
@@ -562,9 +575,11 @@ class Lachesis:
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
+    lachesis_instance.run_lachesis(
+        "../inputs/graphs_with_cheaters/graph_80.txt", "result.pdf", True
+    )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_80.txt", "result_multiinstance.pdf", True
     )
