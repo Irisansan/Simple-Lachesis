@@ -13,6 +13,9 @@ class LachesisMultiInstance:
         self.graph = None
 
     def initialize_instances(self):
+        # NOTE: assumption made here that for just the first frame
+        # we are aware of all the other validators that will be
+        # present and their weights
         validators = set(node[0] for node in self.graph.nodes)
         for validator in validators:
             self.instances[validator] = Lachesis(validator)
@@ -131,20 +134,7 @@ class Lachesis:
         self.last_validator_sequence = {}
         self.request_queue = deque()
         self.process_queue = {}
-        self.min_quorum_values = {}
-
-    def single_instance_initialize(self, graph):
-        validators = set(node[0] for node in graph.nodes)
-        self.root_set_validators[1] = validators
-        self.validator_weights = {
-            v: graph.nodes[
-                min(
-                    (node for node in graph.nodes if node[0] == v),
-                    key=lambda node: graph.nodes[node]["timestamp"],
-                )
-            ]["weight"]
-            for v in validators
-        }
+        self.quorum_values = {}
 
     def defer_event_processing(self, event, instances):
         self.process_queue[event.id] = event
@@ -189,19 +179,15 @@ class Lachesis:
             del self.process_queue[event_id]
 
     def quorum(self, frame_number):
-        if frame_number not in self.min_quorum_values:
-            non_cheater_validators = [
-                v for v in self.validators if v not in self.cheater_list
-            ]
-            min_quorum = (
-                2
-                * sum([self.validator_weights[x] for x in non_cheater_validators])
-                // 3
-                + 1
+        # NOTE: we cache the value in a dictionary as in multnode runs we need to refer
+        # to one constant quorum that will be used regardless of cheaters to keep
+        # consensus deterministic
+        if frame_number not in self.quorum_values:
+            self.quorum_values[frame_number] = (
+                2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
             )
-            self.min_quorum_values[frame_number] = min_quorum
 
-        return self.min_quorum_values[frame_number]
+        return self.quorum_values[frame_number]
 
     def highest_events_observed_by_event(self, node):
         if node.creator in self.cheater_list:
@@ -375,7 +361,21 @@ class Lachesis:
     def process_graph_by_timesteps(self, graph):
         nodes = sorted(graph.nodes(data=True), key=lambda node: node[1]["timestamp"])
         max_timestamp = max([node[1]["timestamp"] for node in nodes])
-        self.single_instance_initialize(graph)
+        # NOTE: assumption made here that for just the first frame
+        # we are aware of all the other validators that will be
+        # present and their weights
+        validators = set(node[0] for node in graph.nodes)
+        self.root_set_validators[1] = validators
+        self.validators = validators
+        self.validator_weights = {
+            v: graph.nodes[
+                min(
+                    (node for node in graph.nodes if node[0] == v),
+                    key=lambda node: graph.nodes[node]["timestamp"],
+                )
+            ]["weight"]
+            for v in validators
+        }
 
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
