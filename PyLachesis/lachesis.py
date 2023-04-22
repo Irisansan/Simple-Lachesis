@@ -44,8 +44,6 @@ class LachesisMultiInstance:
         max_timestamp = max([node[1]["timestamp"] for node in nodes])
 
         for current_time in range(max_timestamp + 1):
-            # print()
-            # print("current time:", current_time)
             nodes_to_process = [
                 node for node in nodes if node[1]["timestamp"] == current_time
             ]
@@ -53,12 +51,8 @@ class LachesisMultiInstance:
             random.shuffle(nodes_to_process)
 
             for node in nodes_to_process:
-                # self.update_validators_and_weights(node)
-
                 validator = node[0][0]
                 seq = node[1]["predecessors"]
-
-                # print("node:", validator, seq)
 
                 event = Event(
                     id=(validator, seq),
@@ -92,60 +86,10 @@ class LachesisMultiInstance:
         self.initialize_instances()
         self.process_graph_by_timesteps()
 
-        target_validators = ["A", "C", "E", "I", "O"]
-        target_times = [40, 41]
-        target_nodes = [
-            (validator, time)
-            for validator in target_validators
-            for time in target_times
-        ]
-
         if create_graph:
             for instance in self.instances.values():
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
-
-                if instance.validator in target_validators:
-                    print(f"Validator {instance.validator}'s event information:")
-                    for node_key in target_nodes:
-                        node = self.graph.nodes.get(node_key)
-                        if node:
-                            event_id = (node_key[0], node["predecessors"])
-                            event = instance.events.get(event_id)
-                            if event:
-                                print(f"Node: {event_id} ({node_key})")
-                                print(f"  Event ID: {event.id}")
-                                print(f"  Sequence: {event.seq}")
-                                print(f"  Creator: {event.creator}")
-                                print(f"  Parents: {event.parents}")
-                                print(f"  Frame: {event.frame}")
-
-                                sorted_lowest_events_vector = {
-                                    key: value
-                                    for key, value in sorted(
-                                        event.lowest_events_vector.items(),
-                                        key=lambda x: (x[0], x[1]["event_id"][0]),
-                                    )
-                                }
-                                print(
-                                    f"  Lowest events vector: {sorted_lowest_events_vector}"
-                                )
-
-                                sorted_highest_events_observed_by_event = {
-                                    key: value
-                                    for key, value in sorted(
-                                        event.highest_events_observed_by_event.items()
-                                    )
-                                }
-                                print(
-                                    f"  Highest events observed by event: {sorted_highest_events_observed_by_event}"
-                                )
-
-                        else:
-                            print(
-                                f"Node {node_key} not found in LachesisMultiInstance.graph"
-                            )
-                    print("\n")
 
 
 class Event:
@@ -158,6 +102,7 @@ class Event:
         self.highest_events_observed_by_event = {}
         self.frame = frame
 
+    # the rest of properties are consensus mechanism dependent
     def copy_basic_properties(self):
         return Event(
             id=self.id, seq=self.seq, creator=self.creator, parents=self.parents
@@ -186,6 +131,7 @@ class Lachesis:
         self.last_validator_sequence = {}
         self.request_queue = deque()
         self.process_queue = {}
+        self.min_quorum_values = {}
 
     def single_instance_initialize(self, graph):
         validators = set(node[0] for node in graph.nodes)
@@ -239,22 +185,23 @@ class Lachesis:
         )
 
         for event_id, event in sorted_process_queue:
-            # print(self.events)
             self.process_event(event)
             del self.process_queue[event_id]
 
     def quorum(self, frame_number):
-        return (
-            2
-            * sum(
-                [
-                    self.validator_weights[x]
-                    for x in self.root_set_validators[frame_number]
-                ]
+        if frame_number not in self.min_quorum_values:
+            non_cheater_validators = [
+                v for v in self.validators if v not in self.cheater_list
+            ]
+            min_quorum = (
+                2
+                * sum([self.validator_weights[x] for x in non_cheater_validators])
+                // 3
+                + 1
             )
-            // 3
-            + 1
-        )
+            self.min_quorum_values[frame_number] = min_quorum
+
+        return self.min_quorum_values[frame_number]
 
     def highest_events_observed_by_event(self, node):
         if node.creator in self.cheater_list:
@@ -329,42 +276,15 @@ class Lachesis:
         if event.seq == 1:
             return True, 1
         else:
-            frame_to_add_to = None
-            if (
-                (self.frame == 1)
-                or (
-                    self.frame > 1
-                    and len(self.root_set_validators[self.frame])
-                    >= len(self.root_set_validators[self.frame - 1])
-                    - len(
-                        [
-                            v
-                            for v in self.root_set_validators[self.frame - 1]
-                            if v in self.cheater_list
-                        ]
-                    )
-                )
-                and event.creator in self.root_set_validators[self.frame]
-                and event.creator not in self.cheater_list
-            ):
+            direct_child = self.events[(event.creator, event.seq - 1)]
+
+            if event.creator not in self.cheater_list:
                 forkless_cause_current_frame = self.forkless_cause_quorum(
-                    event, self.frame
+                    event, direct_child.frame
                 )
                 if forkless_cause_current_frame:
-                    frame_to_add_to = self.frame + 1
-            elif (
-                self.frame > 1
-                and event.creator not in self.root_set_validators[self.frame]
-                and event.creator not in self.cheater_list
-            ):
-                forkless_cause_previous_frame = self.forkless_cause_quorum(
-                    event, self.frame - 1
-                )
-                if forkless_cause_previous_frame:
-                    frame_to_add_to = self.frame
+                    return True, direct_child.frame + 1
 
-            if frame_to_add_to is not None:
-                return True, frame_to_add_to
             return False, None
 
     def process_event(self, event):
@@ -385,7 +305,7 @@ class Lachesis:
             event.frame = target_frame
             self.events[event.id].frame = target_frame
 
-            self.frame = target_frame
+            self.frame = target_frame if target_frame > self.frame else self.frame
 
             if event.creator not in self.cheater_list:
                 self.root_set_validators[target_frame].add(event.creator)
@@ -394,10 +314,8 @@ class Lachesis:
             self.atropos_voting(event.id)
 
         else:
-            direct_child_seq = event.seq - 1
-            direct_child = self.events[(event.creator, direct_child_seq)]
-            if direct_child:
-                event.frame = direct_child.frame
+            direct_child = self.events[(event.creator, event.seq - 1)]
+            event.frame = direct_child.frame
 
     def forkless_cause_quorum(self, event, frame_number):
         forkless_cause_count = 0
