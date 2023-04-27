@@ -48,62 +48,39 @@ def convert_input_to_DAG(input_file):
 class LachesisMultiInstance:
     def __init__(self):
         self.instances = {}
-        self.graph = None
+        self.nodes = []
 
     def initialize_instances(self):
-        # NOTE: assumption made here that for just the first frame
-        # we are aware of all the other validators that will be
-        # present and their weights
-        validators = set(node[0] for node in self.graph.nodes)
+        validators = set(node.id[0] for node in self.nodes)
         for validator in validators:
             self.instances[validator] = Lachesis(validator)
             self.instances[validator].validators = validators.copy()
+
             self.instances[validator].validator_weights = {
-                v: self.graph.nodes[
-                    min(
-                        (node for node in self.graph.nodes if node[0] == v),
-                        key=lambda node: self.graph.nodes[node]["timestamp"],
-                    )
-                ]["weight"]
+                v: next(node for node in self.nodes if node.id[0] == v).weight
                 for v in validators
             }
             self.instances[validator].root_set_validators[1] = validators.copy()
 
-    def update_validators_and_weights(self, node):
-        validator = node[0][0]
-        weight = node[1]["weight"]
-
-        # assume new nodes broadcast their existence
-        for instance in self.instances.values():
-            if validator not in instance.validators:
-                instance.validators.add(validator)
-                instance.validator_weights[validator] = weight
-
     def process_graph_by_timesteps(self):
-        nodes = sorted(
-            self.graph.nodes(data=True), key=lambda node: node[1]["timestamp"]
-        )
-        max_timestamp = max([node[1]["timestamp"] for node in nodes])
+        max_timestamp = max(node.timestamp for node in self.nodes)
 
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
-                node for node in nodes if node[1]["timestamp"] == current_time
+                node for node in self.nodes if node.timestamp == current_time
             ]
 
             random.shuffle(nodes_to_process)
 
             for node in nodes_to_process:
-                validator = node[0][0]
-                seq = node[1]["predecessors"]
+                validator = node.id[0]
+                seq = node.predecessors
 
                 event = Event(
                     id=(validator, seq),
                     seq=seq,
                     creator=validator,
-                    parents=[
-                        (parent[0], self.graph.nodes[parent]["predecessors"])
-                        for parent in self.graph.successors((validator, current_time))
-                    ],
+                    parents=[(parent.id) for parent in node.children],
                 )
 
                 instance = self.instances[validator]
@@ -122,9 +99,9 @@ class LachesisMultiInstance:
 
         return self.instances
 
-    def run_lachesis_multi_instance(self, graph_file, output_file, create_graph=False):
-        G = convert_input_to_DAG(graph_file)
-        self.graph = G
+    def run_lachesis_multi_instance(self, input_file, output_file, create_graph=False):
+        nodes = convert_input_to_DAG(input_file)
+        self.nodes = nodes
         self.initialize_instances()
         self.process_graph_by_timesteps()
 
@@ -208,8 +185,6 @@ class Lachesis:
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
                 ):
-                    print(self.validator)
-
                     missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
 
@@ -342,7 +317,7 @@ class Lachesis:
         self.set_lowest_events_vector(event)
         self.detect_forks(event)
 
-        print(self.validator)
+        self.events[event.id] = event
 
         is_root, target_frame = self.check_for_roots(event)
         if is_root:
@@ -352,6 +327,7 @@ class Lachesis:
                 self.root_set_nodes[target_frame] = SortedSet()
 
             event.frame = target_frame
+
             self.events[event.id].frame = target_frame
 
             self.frame = target_frame if target_frame > self.frame else self.frame
@@ -612,10 +588,10 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis("../inputs/graphs/graph_1.txt", "result.pdf", True)
+    # lachesis_instance = Lachesis()
+    # lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
 
-    # lachesis_multiinstance = LachesisMultiInstance()
-    # lachesis_multiinstance.run_lachesis_multi_instance(
-    #     "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
-    # )
+    lachesis_multiinstance = LachesisMultiInstance()
+    lachesis_multiinstance.run_lachesis_multi_instance(
+        "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
+    )
