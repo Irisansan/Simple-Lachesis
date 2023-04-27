@@ -1,10 +1,48 @@
 import random
-from input_to_dag import convert_input_to_DAG
 from sortedcontainers import SortedSet
 from collections import deque
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import networkx as nx
+
+
+def convert_input_to_DAG(input_file):
+    nodes = {}
+
+    with open(input_file, "r") as f:
+        for line in f:
+            line = line.strip()
+            parts = line.split(";")
+
+            node_info = parts[0].strip()[6:-1]
+            node_id, timestamp, predecessors = node_info.split(",")
+            timestamp, predecessors = int(timestamp), int(predecessors)
+            node_key = (node_id[1:], predecessors)
+
+            if node_key not in nodes:
+                nodes[node_key] = Node(node_key, timestamp, predecessors)
+
+            node = nodes[node_key]
+
+            for child_info in parts[1:]:
+                child_info = child_info.strip()[7:-1]
+                child_info_parts = child_info.split(",")
+                if len(child_info_parts) < 2:
+                    continue
+                child_id, child_timestamp = child_info_parts[:2]
+                child_timestamp = int(child_timestamp)
+                child_predecessors = int(child_info_parts[2])
+                child_key = (child_id[1:], child_predecessors)
+
+                if child_key not in nodes:
+                    nodes[child_key] = Node(
+                        child_key, child_timestamp, child_predecessors
+                    )
+
+                child = nodes[child_key]
+                node.children.append(child)
+
+    return nodes.values()
 
 
 class LachesisMultiInstance:
@@ -94,6 +132,18 @@ class LachesisMultiInstance:
             for instance in self.instances.values():
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
+
+
+class Node:
+    def __init__(self, id, timestamp, predecessors):
+        self.id = id
+        self.timestamp = timestamp
+        self.predecessors = predecessors
+        self.children = []
+        self.weight = 1
+
+    def __repr__(self):
+        return f"Node({self.id}, {self.timestamp}, {self.predecessors})"
 
 
 class Event:
@@ -371,49 +421,37 @@ class Lachesis:
                             self.frame_to_decide += 1
                             self.block += 1
 
-    def process_graph_by_timesteps(self, graph):
-        nodes = sorted(graph.nodes(data=True), key=lambda node: node[1]["timestamp"])
-        max_timestamp = max([node[1]["timestamp"] for node in nodes])
-        # NOTE: assumption made here that for just the first frame
-        # we are aware of all the other validators that will be
-        # present and their weights
-        validators = set(node[0] for node in graph.nodes)
+    def process_graph_by_timesteps(self, nodes):
+        sorted_nodes = sorted(nodes, key=lambda node: node.timestamp)
+        max_timestamp = max(node.timestamp for node in nodes)
+        validators = set(node.id[0] for node in nodes)
         self.root_set_validators[1] = validators
         self.validators = validators
         self.validator_weights = {
-            v: graph.nodes[
-                min(
-                    (node for node in graph.nodes if node[0] == v),
-                    key=lambda node: graph.nodes[node]["timestamp"],
-                )
-            ]["weight"]
+            v: next(node for node in sorted_nodes if node.id[0] == v).weight
             for v in validators
         }
 
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
-                node for node in nodes if node[1]["timestamp"] == current_time
+                node for node in nodes if node.timestamp == current_time
             ]
 
             random.shuffle(nodes_to_process)
 
             for node in nodes_to_process:
-                validator = node[0][0]
-                timestamp = node[0][1]
-                seq = node[1]["predecessors"]
+                validator = node.id[0]
+                seq = node.predecessors
 
                 if validator not in self.validators:
                     self.validators.add(validator)
-                    self.validator_weights[validator] = node[1]["weight"]
+                    self.validator_weights[validator] = node.weight
 
                 event = Event(
                     id=(validator, seq),
                     seq=seq,
                     creator=validator,
-                    parents=[
-                        (parent[0], graph.nodes[parent]["predecessors"])
-                        for parent in graph.successors((validator, timestamp))
-                    ],
+                    parents=[(parent.id) for parent in node.children],
                 )
 
                 self.events[event.id] = event
@@ -539,8 +577,8 @@ class Lachesis:
         plt.close()
 
     def run_lachesis(self, graph_file, output_file, create_graph=False):
-        G = convert_input_to_DAG(graph_file)
-        self.process_graph_by_timesteps(G)
+        nodes = convert_input_to_DAG(graph_file)
+        self.process_graph_by_timesteps(nodes)
         if create_graph:
             self.graph_results(output_file)
 
@@ -575,11 +613,9 @@ class Lachesis:
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_80.txt", "result.pdf", True
-    )
+    lachesis_instance.run_lachesis("../inputs/graphs/graph_1.txt", "result.pdf", True)
 
-    lachesis_multiinstance = LachesisMultiInstance()
-    lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_80.txt", "result_multiinstance.pdf", True
-    )
+    # lachesis_multiinstance = LachesisMultiInstance()
+    # lachesis_multiinstance.run_lachesis_multi_instance(
+    #     "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
+    # )
