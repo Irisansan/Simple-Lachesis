@@ -7,7 +7,7 @@ import networkx as nx
 
 
 def convert_input_to_DAG(input_file):
-    nodes = {}
+    nodes = []
 
     with open(input_file, "r") as f:
         for line in f:
@@ -19,10 +19,8 @@ def convert_input_to_DAG(input_file):
             timestamp, predecessors = int(timestamp), int(predecessors)
             node_key = (node_id[1:], predecessors)
 
-            if node_key not in nodes:
-                nodes[node_key] = Node(node_key, timestamp, predecessors)
-
-            node = nodes[node_key]
+            node = Node(node_key, timestamp, predecessors)
+            nodes.append(node)
 
             for child_info in parts[1:]:
                 child_info = child_info.strip()[7:-1]
@@ -34,15 +32,10 @@ def convert_input_to_DAG(input_file):
                 child_predecessors = int(child_info_parts[2])
                 child_key = (child_id[1:], child_predecessors)
 
-                if child_key not in nodes:
-                    nodes[child_key] = Node(
-                        child_key, child_timestamp, child_predecessors
-                    )
-
-                child = nodes[child_key]
+                child = Node(child_key, child_timestamp, child_predecessors)
                 node.children.append(child)
 
-    return nodes.values()
+    return nodes
 
 
 class LachesisMultiInstance:
@@ -124,7 +117,7 @@ class Node:
 
 
 class Event:
-    def __init__(self, id, seq, creator, parents, frame=None):
+    def __init__(self, id, seq, creator, parents, frame=None, count=1):
         self.id = id
         self.seq = seq
         self.creator = creator
@@ -132,11 +125,16 @@ class Event:
         self.lowest_events_vector = {}
         self.highest_events_observed_by_event = {}
         self.frame = frame
+        self.count = count
 
     # the rest of the properties are consensus mechanism dependent
     def copy_basic_properties(self):
         return Event(
-            id=self.id, seq=self.seq, creator=self.creator, parents=self.parents
+            id=self.id,
+            seq=self.seq,
+            creator=self.creator,
+            parents=self.parents,
+            count=self.count,
         )
 
 
@@ -165,14 +163,24 @@ class Lachesis:
         self.quorum_values = {}
 
     def defer_event_processing(self, event, instances):
-        if event.id not in self.process_queue:
-            self.process_queue[event.id] = []
+        existing_events = self.process_queue.get(event.id, [])
 
-        self.process_queue[event.id].append(event)
-        self.event_timestamps[event.id] = self.time
+        for existing_event in existing_events:
+            event.parents = list(set(event.parents) | set(existing_event.parents))
+            event.count += existing_event.count
+
+        if not existing_events:
+            if event.id not in self.process_queue:
+                self.process_queue[event.id] = []
+            self.process_queue[event.id].append(event)
+            self.event_timestamps[event.id] = self.time
 
         for parent_id in event.parents:
-            if parent_id not in self.events and parent_id not in self.process_queue:
+            if (
+                parent_id not in self.events
+                and parent_id not in self.process_queue
+                and event.creator not in self.cheater_list
+            ):
                 parent_instance = instances[parent_id[0]]
                 parent_instance.request_queue.append((event.creator, [parent_id]))
 
@@ -184,6 +192,7 @@ class Lachesis:
                 if (
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
+                    and self.validator not in recipient_instance.cheater_list
                 ):
                     missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
@@ -230,9 +239,9 @@ class Lachesis:
             return
 
         for parent_id in node.parents:
-            parent = self.events[parent_id]
+            if parent_id[0] not in self.cheater_list:
+                parent = self.events[parent_id]
 
-            if parent.creator not in self.cheater_list:
                 if (
                     parent.creator not in node.highest_events_observed_by_event
                     or parent.seq
@@ -248,6 +257,11 @@ class Lachesis:
                         node.highest_events_observed_by_event[creator] = seq
 
     def detect_forks(self, event):
+        if event.count > 1:
+            self.cheater_list.add(event.creator)
+            self.validator_weights[event.creator] = 0
+            return
+
         validator = event.creator
         seq = event.seq
 
@@ -282,6 +296,8 @@ class Lachesis:
 
         while parents:
             parent_id = parents.popleft()
+            if parent_id[0] in self.cheater_list:
+                continue
             parent = self.events[parent_id]
             parent_vector = parent.lowest_events_vector
 
@@ -313,9 +329,15 @@ class Lachesis:
         if event.creator in self.cheater_list:
             return
 
+        # print()
+        # print("\t", self.validator)
+        # print("\t", self.cheater_list)
+        # print("\t", self.time)
+        # print([(e, self.events[e].parents, self.events[e].count) for e in self.events])
+
+        self.detect_forks(event)
         self.highest_events_observed_by_event(event)
         self.set_lowest_events_vector(event)
-        self.detect_forks(event)
 
         self.events[event.id] = event
 
@@ -407,6 +429,8 @@ class Lachesis:
             v: next(node for node in sorted_nodes if node.id[0] == v).weight
             for v in validators
         }
+
+        print(sorted_nodes)
 
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
@@ -589,9 +613,11 @@ class Lachesis:
 
 if __name__ == "__main__":
     # lachesis_instance = Lachesis()
-    # lachesis_instance.run_lachesis("../inputs/graphs/graph_53.txt", "result.pdf", True)
+    # lachesis_instance.run_lachesis(
+    #     "../inputs/graphs_with_cheaters/graph_80.txt", "result.pdf", True
+    # )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_1.txt", "result_multiinstance.pdf", True
     )
