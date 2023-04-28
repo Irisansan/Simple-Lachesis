@@ -176,11 +176,7 @@ class Lachesis:
             self.event_timestamps[event.id] = self.time
 
         for parent_id in event.parents:
-            if (
-                parent_id not in self.events
-                and parent_id not in self.process_queue
-                and event.creator not in self.cheater_list
-            ):
+            if parent_id not in self.events and parent_id not in self.process_queue:
                 parent_instance = instances[parent_id[0]]
                 parent_instance.request_queue.append((event.creator, [parent_id]))
 
@@ -192,7 +188,6 @@ class Lachesis:
                 if (
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
-                    and self.validator not in recipient_instance.cheater_list
                 ):
                     missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
@@ -235,32 +230,47 @@ class Lachesis:
         return self.quorum_values[frame_number]
 
     def highest_events_observed_by_event(self, node):
-        if node.creator in self.cheater_list:
-            return
-
         for parent_id in node.parents:
-            if parent_id[0] not in self.cheater_list:
-                parent = self.events[parent_id]
+            parent = self.events[parent_id]
 
+            if (
+                parent.creator not in node.highest_events_observed_by_event
+                or parent.seq > node.highest_events_observed_by_event[parent.creator]
+            ):
+                node.highest_events_observed_by_event[parent.creator] = parent.seq
+
+            for creator, seq in parent.highest_events_observed_by_event.items():
                 if (
-                    parent.creator not in node.highest_events_observed_by_event
-                    or parent.seq
-                    > node.highest_events_observed_by_event[parent.creator]
+                    creator not in node.highest_events_observed_by_event
+                    or seq > node.highest_events_observed_by_event[creator]
                 ):
-                    node.highest_events_observed_by_event[parent.creator] = parent.seq
-
-                for creator, seq in parent.highest_events_observed_by_event.items():
-                    if (
-                        creator not in node.highest_events_observed_by_event
-                        or seq > node.highest_events_observed_by_event[creator]
-                    ):
-                        node.highest_events_observed_by_event[creator] = seq
+                    node.highest_events_observed_by_event[creator] = seq
 
     def detect_forks(self, event):
         if event.count > 1:
             self.cheater_list.add(event.creator)
             self.validator_weights[event.creator] = 0
             return
+
+        parent_ids = event.parents
+
+        # Check if the event has itself as a parent
+        if event.id in parent_ids:
+            self.cheater_list.add(event.creator)
+            self.validator_weights[event.creator] = 0
+            return
+
+        # Check for duplicate parent ID
+        duplicate_parent_id = None
+        for parent_id in parent_ids:
+            if parent_ids.count(parent_id) > 1:
+                duplicate_parent_id = parent_id
+                break
+
+        if duplicate_parent_id is not None:
+            cheater_validator = duplicate_parent_id[0]
+            self.cheater_list.add(cheater_validator)
+            self.validator_weights[cheater_validator] = 0
 
         validator = event.creator
         seq = event.seq
@@ -290,24 +300,17 @@ class Lachesis:
         return yes >= self.quorum(event_b.frame)
 
     def set_lowest_events_vector(self, event):
-        if event.creator in self.cheater_list:
-            return
         parents = deque(event.parents)
 
         while parents:
             parent_id = parents.popleft()
-            if parent_id[0] in self.cheater_list:
-                continue
             parent = self.events[parent_id]
             parent_vector = parent.lowest_events_vector
 
             if event.creator not in parent_vector:
                 parent_vector[event.creator] = {"event_id": event.id, "seq": event.seq}
 
-                if (
-                    event.creator != parent.creator
-                    and parent.creator not in self.cheater_list
-                ):
+                if event.creator != parent.creator:
                     parents.extend(parent.parents)
 
     def check_for_roots(self, event):
@@ -326,16 +329,13 @@ class Lachesis:
             return False, None
 
     def process_event(self, event):
-        if event.creator in self.cheater_list:
-            return
-
         # print()
         # print("\t", self.validator)
         # print("\t", self.cheater_list)
         # print("\t", self.time)
         # print([(e, self.events[e].parents, self.events[e].count) for e in self.events])
 
-        self.detect_forks(event)
+        # self.detect_forks(event)
         self.highest_events_observed_by_event(event)
         self.set_lowest_events_vector(event)
 
@@ -430,8 +430,6 @@ class Lachesis:
             for v in validators
         }
 
-        print(sorted_nodes)
-
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
                 node for node in nodes if node.timestamp == current_time
@@ -506,11 +504,12 @@ class Lachesis:
                 (validator, timestamp), seq=seq, frame=frame, weight=weight
             )
             for parent in data.parents:
-                parent_timestamp = self.event_timestamps[parent]
-                timestamp_dag.add_edge(
-                    (validator, timestamp),
-                    (parent[0], parent_timestamp),
-                )
+                if parent in self.events:
+                    parent_timestamp = self.event_timestamps[parent]
+                    timestamp_dag.add_edge(
+                        (validator, timestamp),
+                        (parent[0], parent_timestamp),
+                    )
 
         pos = {}
         num_nodes = len(self.validator_weights)
@@ -614,10 +613,10 @@ class Lachesis:
 if __name__ == "__main__":
     # lachesis_instance = Lachesis()
     # lachesis_instance.run_lachesis(
-    #     "../inputs/graphs_with_cheaters/graph_80.txt", "result.pdf", True
+    #     "../inputs/graphs_with_cheaters/graph_4.txt", "result.pdf", True
     # )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_1.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_4.txt", "result_multiinstance.pdf", True
     )
