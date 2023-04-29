@@ -162,6 +162,7 @@ class Lachesis:
         self.request_queue = deque()
         self.process_queue = {}
         self.quorum_values = {}
+        self.next_event_index = {}
 
     def defer_event_processing(self, event, instances):
         existing_events = self.process_queue.get(event.id, [])
@@ -193,6 +194,16 @@ class Lachesis:
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
                 ):
+                    print()
+                    print("missing")
+                    print("\tprocessing validator", self.validator)
+                    print("\tprocessor cheater_list", self.cheater_list)
+                    print("\tprocessor events", self.events)
+                    print("\trequesting validator", recipient_instance.validator)
+                    print("\trequesting cheater_list", recipient_instance.cheater_list)
+                    print("\trequestor events", recipient_instance.events)
+                    print("\tmissing_event", event_id)
+
                     missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
 
@@ -212,14 +223,23 @@ class Lachesis:
                             self.request_queue.append((recipient_id, [parent_id]))
 
     def process_deferred_events(self):
+        # Initialize the next event index for each event ID
+        for event_id in self.process_queue:
+            if event_id not in self.next_event_index:
+                self.next_event_index[event_id] = 0
+
         sorted_process_queue = sorted(
             self.process_queue.items(),
-            key=lambda x: (min(self.event_timestamps[x[0]]), x[0]),
+            key=lambda x: (
+                self.event_timestamps[x[0]][self.next_event_index[x[0]]],
+                x[0],
+            ),
         )
 
         for event_id, events in sorted_process_queue:
             for event in events:
                 self.process_event(event)
+                self.next_event_index[event.id] += 1
             del self.process_queue[event_id]
 
     def quorum(self, frame_number):
@@ -235,13 +255,18 @@ class Lachesis:
 
     def highest_events_observed_by_event(self, node):
         for parent_id in node.parents:
-            parent = self.events[parent_id]
+            print()
+            print("highest")
+            print("\tvalidator", self.validator)
+            print("\tcheater_list", self.cheater_list)
+            print("\tval events", self.events)
+            print("\tnode id", node.id)
+            print("\tnode parents", node.parents)
 
-            if (
-                parent.creator in self.cheater_list
-                and parent.creator is not self.validator
-            ):
+            if parent_id[0] in self.cheater_list:
                 continue
+
+            parent = self.events[parent_id]
 
             if (
                 parent.creator not in node.highest_events_observed_by_event
@@ -346,8 +371,8 @@ class Lachesis:
             return False, None
 
     def process_event(self, event):
-        if event.creator in self.cheater_list:
-            return
+        # if event.creator in self.cheater_list and event.creator is not self.validator:
+        #     return
 
         # print()
         # print("\t", self.validator)
@@ -648,10 +673,12 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis("../inputs/graphs/graph_4.txt", "result.pdf", True)
+    # lachesis_instance = Lachesis()
+    # lachesis_instance.run_lachesis(
+    #     "../inputs/graphs_with_cheaters/graph_4.txt", "result.pdf", True
+    # )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs/graph_4.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_4.txt", "result_multiinstance.pdf", True
     )
