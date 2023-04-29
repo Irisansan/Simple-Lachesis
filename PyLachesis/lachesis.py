@@ -136,7 +136,6 @@ class Event:
             seq=self.seq,
             creator=self.creator,
             parents=self.parents,
-            count=self.count,
         )
 
 
@@ -169,7 +168,6 @@ class Lachesis:
 
         for existing_event in existing_events:
             event.parents = list(set(event.parents) | set(existing_event.parents))
-            event.count += existing_event.count
 
         if not existing_events:
             if event.id not in self.process_queue:
@@ -356,15 +354,16 @@ class Lachesis:
         # print("\t", self.cheater_list)
         # print("\t", self.time)
         # print([(e, self.events[e].parents, self.events[e].count) for e in self.events])
-        # print("validator", self.validator)
-        # print("\tevent:", event.id)
-        # print("\tcheater_list", self.cheater_list)
-        # print("\tparents", event.parents)
-        # print("\tevents", self.events)
-        # print("\tprocess_queue", self.process_queue)
+        print()
+        print("validator", self.validator)
+        print("\tevent:", event.id)
+        print("\tcheater_list", self.cheater_list)
+        print("\tparents", event.parents)
+        print("\tevents", [(e, self.events[e].count) for e in self.events])
+        print("\tprocess_queue", self.process_queue)
 
+        event.count += 1
         self.events[event.id] = event
-        self.events[event.id].count += 1
         fork_present = self.detect_forks(event)
         if fork_present:
             self.quorum_values[self.frame] = (
@@ -650,11 +649,9 @@ class Lachesis:
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_4.txt", "result.pdf", True
-    )
+    lachesis_instance.run_lachesis("../inputs/graphs/graph_4.txt", "result.pdf", True)
 
-    # lachesis_multiinstance = LachesisMultiInstance()
-    # lachesis_multiinstance.run_lachesis_multi_instance(
-    #     "../inputs/graphs/graph_53.txt", "result_multiinstance.pdf", True
-    # )
+    lachesis_multiinstance = LachesisMultiInstance()
+    lachesis_multiinstance.run_lachesis_multi_instance(
+        "../inputs/graphs/graph_4.txt", "result_multiinstance.pdf", True
+    )
