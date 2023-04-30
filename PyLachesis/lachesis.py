@@ -77,7 +77,7 @@ class LachesisMultiInstance:
                 )
 
                 instance = self.instances[validator]
-                instance.events[event.id] = event
+                # instance.events[event.id] = event
                 if event.id not in instance.event_timestamps:
                     instance.event_timestamps[event.id] = []
                 instance.event_timestamps[event.id].append(current_time)
@@ -129,7 +129,6 @@ class Event:
         self.frame = frame
         self.count = count
 
-    # the rest of the properties are consensus mechanism dependent
     def copy_basic_properties(self):
         return Event(
             id=self.id,
@@ -163,26 +162,67 @@ class Lachesis:
         self.process_queue = {}
         self.quorum_values = {}
         self.next_event_index = {}
+        self.event_parents = {}
+        self.event_timestamp_indices = {}
 
     def defer_event_processing(self, event, instances):
         existing_events = self.process_queue.get(event.id, [])
 
-        for existing_event in existing_events:
-            event.parents = list(set(event.parents) | set(existing_event.parents))
-
         if not existing_events:
-            if event.id not in self.process_queue:
-                self.process_queue[event.id] = []
+            self.process_queue[event.id] = [event]
+        else:
+            # Add the new event without merging parents
             self.process_queue[event.id].append(event)
 
-            if event.id not in self.event_timestamps:
-                self.event_timestamps[event.id] = []
-            self.event_timestamps[event.id].append(self.time)
+        # if event.id not in self.event_timestamps:
+        #     self.event_timestamps[event.id] = []
+        # self.event_timestamps[event.id].append(self.time)
+
+        # Store the parents of the deferred event
+        if event.id not in self.event_parents:
+            self.event_parents[event.id] = []
+        self.event_parents[event.id].append(event.parents)
 
         for parent_id in event.parents:
             if parent_id not in self.events and parent_id not in self.process_queue:
                 parent_instance = instances[parent_id[0]]
                 parent_instance.request_queue.append((event.creator, [parent_id]))
+
+        for existing_event in existing_events:
+            for parent_id in existing_event.parents:
+                if parent_id not in self.events and parent_id not in self.process_queue:
+                    parent_instance = instances[parent_id[0]]
+                    parent_instance.request_queue.append((event.creator, [parent_id]))
+
+    def process_deferred_events(self):
+        for event_id in self.process_queue:
+            if event_id not in self.next_event_index:
+                self.next_event_index[event_id] = 0
+
+        sorted_process_queue = sorted(
+            self.process_queue.items(),
+            key=lambda x: (
+                self.event_timestamps[x[0]][self.next_event_index[x[0]]],
+                x[0],
+            ),
+        )
+
+        # print()
+        # print("SORTED PROCESS QUEUE")
+        # print(self.event_timestamps, self.next_event_index)
+
+        for event_id, events in sorted_process_queue:
+            for event in events:
+                # Reference the correct parents for the event at the current index, if available
+                if event.id in self.event_parents:
+                    event.parents = self.event_parents[event.id][
+                        self.next_event_index[event.id]
+                    ]
+                # print("DEFERRED EVENTS")
+                # print(event.id, event.parents)
+                self.process_event(event)
+                self.next_event_index[event.id] += 1
+            del self.process_queue[event_id]
 
     def process_request_queue(self, instances):
         while self.request_queue:
@@ -190,20 +230,13 @@ class Lachesis:
 
             recipient_instance = instances[recipient_id]
             for event_id in missing_event_ids:
+                if event_id[0] in recipient_instance.cheater_list:
+                    continue
+
                 if (
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
                 ):
-                    print()
-                    print("missing")
-                    print("\tprocessing validator", self.validator)
-                    print("\tprocessor cheater_list", self.cheater_list)
-                    print("\tprocessor events", self.events)
-                    print("\trequesting validator", recipient_instance.validator)
-                    print("\trequesting cheater_list", recipient_instance.cheater_list)
-                    print("\trequestor events", recipient_instance.events)
-                    print("\tmissing_event", event_id)
-
                     missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
 
@@ -222,30 +255,7 @@ class Lachesis:
                         ):
                             self.request_queue.append((recipient_id, [parent_id]))
 
-    def process_deferred_events(self):
-        # Initialize the next event index for each event ID
-        for event_id in self.process_queue:
-            if event_id not in self.next_event_index:
-                self.next_event_index[event_id] = 0
-
-        sorted_process_queue = sorted(
-            self.process_queue.items(),
-            key=lambda x: (
-                self.event_timestamps[x[0]][self.next_event_index[x[0]]],
-                x[0],
-            ),
-        )
-
-        for event_id, events in sorted_process_queue:
-            for event in events:
-                self.process_event(event)
-                self.next_event_index[event.id] += 1
-            del self.process_queue[event_id]
-
     def quorum(self, frame_number):
-        # NOTE: we cache the value in a dictionary as in multnode runs we need to refer
-        # to one constant quorum that will be used regardless of cheaters to keep
-        # consensus deterministic
         if frame_number not in self.quorum_values:
             self.quorum_values[frame_number] = (
                 2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
@@ -255,13 +265,12 @@ class Lachesis:
 
     def highest_events_observed_by_event(self, node):
         for parent_id in node.parents:
-            print()
-            print("highest")
-            print("\tvalidator", self.validator)
-            print("\tcheater_list", self.cheater_list)
-            print("\tval events", self.events)
-            print("\tnode id", node.id)
-            print("\tnode parents", node.parents)
+            # print()
+            # print("self.validator", self.validator)
+            # print("\tself.time", self.time)
+            # print("\tself.process_queue", self.process_queue)
+            # print("\tnode", node.id)
+            # print("\tevents", self.events)
 
             if parent_id[0] in self.cheater_list:
                 continue
@@ -284,20 +293,13 @@ class Lachesis:
     def detect_forks(self, event):
         fork_detected = False
 
-        if event.count > 1:
-            self.cheater_list.add(event.creator)
-            self.validator_weights[event.creator] = 0
-            fork_detected = True
-
         parent_ids = event.parents
 
-        # Check if the event has itself as a parent
         if event.id in parent_ids:
             self.cheater_list.add(event.creator)
             self.validator_weights[event.creator] = 0
             fork_detected = True
 
-        # Check for duplicate parent IDs and add cheaters to the list
         cheater_validators = set()
         for parent_id in set(parent_ids):
             if parent_ids.count(parent_id) > 1:
@@ -323,8 +325,6 @@ class Lachesis:
 
         return fork_detected
 
-    # determine if event_a is forkless_caused by event_b
-    # event_b is the root typically
     def forkless_cause(self, event_a, event_b):
         if event_a.id[0] in self.cheater_list or event_b.id[0] in self.cheater_list:
             return False
@@ -371,22 +371,6 @@ class Lachesis:
             return False, None
 
     def process_event(self, event):
-        # if event.creator in self.cheater_list and event.creator is not self.validator:
-        #     return
-
-        # print()
-        # print("\t", self.validator)
-        # print("\t", self.cheater_list)
-        # print("\t", self.time)
-        # print([(e, self.events[e].parents, self.events[e].count) for e in self.events])
-        print()
-        print("validator", self.validator)
-        print("\tevent:", event.id)
-        print("\tcheater_list", self.cheater_list)
-        print("\tparents", event.parents)
-        print("\tevents", [(e, self.events[e].count) for e in self.events])
-        print("\tprocess_queue", self.process_queue)
-
         event.count += 1
         self.events[event.id] = event
         fork_present = self.detect_forks(event)
@@ -542,13 +526,13 @@ class Lachesis:
         for key, values in self.root_set_nodes.items():
             for v in values:
                 validator, seq = v
-                timestamp = self.event_timestamps[v][-1]  # Use the latest timestamp
+                timestamp = self.event_timestamps[v][-1]
                 root_set_nodes_new[(validator, timestamp)] = key
 
         atropos_roots_new = {}
         for key, value in self.atropos_roots.items():
             validator, seq = value
-            timestamp = self.event_timestamps[value][-1]  # Use the latest timestamp
+            timestamp = self.event_timestamps[value][-1]
             atropos_roots_new[(validator, timestamp)] = key
 
         atropos_colors = ["limegreen", "green"]
@@ -557,7 +541,7 @@ class Lachesis:
 
         for node, data in self.events.items():
             validator, seq = node
-            timestamp = self.event_timestamps[node][-1]  # Use the latest timestamp
+            timestamp = self.event_timestamps[node][-1]
             frame = data.frame
             weight = self.validator_weights[validator]
             timestamp_dag.add_node(
@@ -565,9 +549,7 @@ class Lachesis:
             )
             for parent in data.parents:
                 if parent in self.events:
-                    parent_timestamp = self.event_timestamps[parent][
-                        -1
-                    ]  # Use the latest timestamp
+                    parent_timestamp = self.event_timestamps[parent][-1]
                     timestamp_dag.add_edge(
                         (validator, timestamp),
                         (parent[0], parent_timestamp),
@@ -647,8 +629,6 @@ class Lachesis:
             self.events.values(), key=lambda e: self.event_timestamps[e.id]
         )
 
-        # for event in sorted_events:
-        #     print(f"Event ID: {event.id}")
         #     print(f"  Timestamp: {self.event_timestamps[event.id]}")
         #     print(f"  Sequence: {event.seq}")
         #     print(f"  Creator: {event.creator}")
@@ -673,12 +653,12 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    # lachesis_instance = Lachesis()
-    # lachesis_instance.run_lachesis(
-    #     "../inputs/graphs_with_cheaters/graph_4.txt", "result.pdf", True
-    # )
+    lachesis_instance = Lachesis()
+    lachesis_instance.run_lachesis(
+        "../inputs/graphs_with_cheaters/graph_64.txt", "result.pdf", True
+    )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_4.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_64.txt", "result_multiinstance.pdf", True
     )
