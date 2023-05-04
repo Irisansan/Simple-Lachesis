@@ -230,13 +230,22 @@ class Lachesis:
 
             recipient_instance = instances[recipient_id]
             for event_id in missing_event_ids:
-                if event_id[0] in recipient_instance.cheater_list:
-                    continue
-
                 if (
                     event_id not in recipient_instance.events
                     and event_id not in recipient_instance.process_queue
                 ):
+                    print("self.validator", self.validator)
+                    print("\trecipient", recipient_instance.validator)
+                    print("\tself.time", self.time)
+                    print("\tself.cheater_list", self.cheater_list)
+                    print("\trecipient.cheater_list", recipient_instance.cheater_list)
+                    print("\trecipient.time", recipient_instance.time)
+                    print("\tevent ID:", event_id)
+                    print("\tself.events", self.events)
+                    print("\trecipient.events", recipient_instance.events)
+                    print("\trecipient.process_queue", recipient_instance.process_queue)
+                    print()
+
                     missing_event = self.events[event_id].copy_basic_properties()
                     missing_event_timestamp = self.event_timestamps[event_id]
 
@@ -379,31 +388,32 @@ class Lachesis:
                 2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
             )
 
-        self.highest_events_observed_by_event(event)
-        self.set_lowest_events_vector(event)
+        if event.creator not in self.cheater_list:
+            self.highest_events_observed_by_event(event)
+            self.set_lowest_events_vector(event)
 
-        is_root, target_frame = self.check_for_roots(event)
-        if is_root:
-            if target_frame not in self.root_set_validators:
-                self.root_set_validators[target_frame] = SortedSet()
-            if target_frame not in self.root_set_nodes:
-                self.root_set_nodes[target_frame] = SortedSet()
+            is_root, target_frame = self.check_for_roots(event)
+            if is_root:
+                if target_frame not in self.root_set_validators:
+                    self.root_set_validators[target_frame] = SortedSet()
+                if target_frame not in self.root_set_nodes:
+                    self.root_set_nodes[target_frame] = SortedSet()
 
-            event.frame = target_frame
+                event.frame = target_frame
 
-            self.events[event.id].frame = target_frame
+                self.events[event.id].frame = target_frame
 
-            self.frame = target_frame if target_frame > self.frame else self.frame
+                self.frame = target_frame if target_frame > self.frame else self.frame
 
-            if event.creator not in self.cheater_list:
-                self.root_set_validators[target_frame].add(event.creator)
-                self.root_set_nodes[target_frame].add(event.id)
+                if event.creator not in self.cheater_list:
+                    self.root_set_validators[target_frame].add(event.creator)
+                    self.root_set_nodes[target_frame].add(event.id)
 
-            self.atropos_voting(event.id)
+                self.atropos_voting(event.id)
 
-        else:
-            direct_child = self.events[(event.creator, event.seq - 1)]
-            event.frame = direct_child.frame
+            else:
+                direct_child = self.events[(event.creator, event.seq - 1)]
+                event.frame = direct_child.frame
 
     def forkless_cause_quorum(self, event, frame_number):
         forkless_cause_count = 0
@@ -655,10 +665,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_64.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_31.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_64.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_31.txt", "result_multiinstance.pdf", True
     )
