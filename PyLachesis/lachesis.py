@@ -119,7 +119,16 @@ class Node:
 
 
 class Event:
-    def __init__(self, id, seq, creator, parents, frame=None, count=0):
+    def __init__(
+        self,
+        id,
+        seq,
+        creator,
+        parents,
+        frame=None,
+        count=0,
+        simultaneous_duplicate=False,
+    ):
         self.id = id
         self.seq = seq
         self.creator = creator
@@ -128,6 +137,7 @@ class Event:
         self.highest_events_observed_by_event = {}
         self.frame = frame
         self.count = count
+        self.simultaneous_duplicate = simultaneous_duplicate
 
     def copy_basic_properties(self):
         return Event(
@@ -135,6 +145,7 @@ class Event:
             seq=self.seq,
             creator=self.creator,
             parents=self.parents,
+            simultaneous_duplicate=self.simultaneous_duplicate,
         )
 
 
@@ -172,12 +183,22 @@ class Lachesis:
         if not existing_events:
             self.process_queue[event.id] = [event]
         else:
-            # Add the new event without merging parents
-            self.process_queue[event.id].append(event)
+            # Check if there's an existing event with the same timestamp
+            same_timestamp_event = None
+            for existing_event in existing_events:
+                if self.time in self.event_timestamps[existing_event.id]:
+                    same_timestamp_event = existing_event
+                    break
 
-        # if event.id not in self.event_timestamps:
-        #     self.event_timestamps[event.id] = []
-        # self.event_timestamps[event.id].append(self.time)
+            if same_timestamp_event:
+                # Merge parents and set the simultaneous_duplicate property
+                same_timestamp_event.parents = list(
+                    set(same_timestamp_event.parents).union(set(event.parents))
+                )
+                same_timestamp_event.simultaneous_duplicate = True
+            else:
+                # Add the new event without merging parents
+                self.process_queue[event.id].append(event)
 
         # Store the parents of the deferred event
         if event.id not in self.event_timestamp_parents:
@@ -302,6 +323,11 @@ class Lachesis:
         fork_detected = False
 
         parent_ids = event.parents
+
+        if event.simultaneous_duplicate:
+            self.cheater_list.add(event.creator)
+            self.validator_weights[event.creator] = 0
+            fork_detected = True
 
         if event.id in parent_ids:
             self.cheater_list.add(event.creator)
