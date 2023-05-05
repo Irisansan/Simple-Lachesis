@@ -164,6 +164,7 @@ class Lachesis:
         self.next_event_index = {}
         self.event_parents = {}
         self.event_timestamp_indices = {}
+        self.event_timestamp_parents = {}
 
     def defer_event_processing(self, event, instances):
         existing_events = self.process_queue.get(event.id, [])
@@ -179,9 +180,9 @@ class Lachesis:
         # self.event_timestamps[event.id].append(self.time)
 
         # Store the parents of the deferred event
-        if event.id not in self.event_parents:
-            self.event_parents[event.id] = []
-        self.event_parents[event.id].append(event.parents)
+        if event.id not in self.event_timestamp_parents:
+            self.event_timestamp_parents[event.id] = {}
+        self.event_timestamp_parents[event.id][self.time] = event.parents
 
         for parent_id in event.parents:
             if parent_id not in self.events and parent_id not in self.process_queue:
@@ -199,30 +200,28 @@ class Lachesis:
             if event_id not in self.next_event_index:
                 self.next_event_index[event_id] = 0
 
-        sorted_process_queue = sorted(
-            self.process_queue.items(),
-            key=lambda x: (
-                self.event_timestamps[x[0]][self.next_event_index[x[0]]],
-                x[0],
-            ),
-        )
-
         # print()
         # print("SORTED PROCESS QUEUE")
         # print(self.event_timestamps, self.next_event_index)
 
+        sorted_process_queue = sorted(
+            self.process_queue.items(),
+            key=lambda x: min(
+                self.event_timestamps[x[0]]
+            ),  # use min() to get the earliest timestamp
+        )
+
         for event_id, events in sorted_process_queue:
             for event in events:
-                # Reference the correct parents for the event at the current index, if available
-                if event.id in self.event_parents:
-                    event.parents = self.event_parents[event.id][
-                        self.next_event_index[event.id]
-                    ]
-                # print("DEFERRED EVENTS")
-                # print(event.id, event.parents)
+                # Reference the correct parents for the event at the current timestamp, if available
+                if (
+                    event.id in self.event_timestamp_parents
+                    and self.time in self.event_timestamp_parents[event.id]
+                ):
+                    event.parents = self.event_timestamp_parents[event.id][self.time]
                 self.process_event(event)
-                self.next_event_index[event.id] += 1
-            del self.process_queue[event_id]
+                # self.next_event_index[event.id] += 1
+            del self.process_queue[event.id]
 
     def process_request_queue(self, instances):
         while self.request_queue:
@@ -665,10 +664,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_31.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_4.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_31.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_4.txt", "result_multiinstance.pdf", True
     )
