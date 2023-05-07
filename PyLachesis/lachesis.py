@@ -77,11 +77,21 @@ class LachesisMultiInstance:
                 )
 
                 instance = self.instances[validator]
-                # instance.events[event.id] = event
                 if event.id not in instance.event_timestamps:
                     instance.event_timestamps[event.id] = []
                 instance.event_timestamps[event.id].append(current_time)
-                instance.defer_event_processing(event, self.instances)
+
+                event_key = (event.id, current_time)
+                if event_key in instance.event_timestamp_parents:
+                    instance.event_timestamp_parents[event_key].extend(
+                        [(parent.id, parent.timestamp) for parent in node.children]
+                    )
+                else:
+                    instance.event_timestamp_parents[event_key] = [
+                        (parent.id, parent.timestamp) for parent in node.children
+                    ]
+
+                instance.defer_event_processing(event, current_time, self.instances)
 
             for instance in self.instances.values():
                 instance.process_request_queue(self.instances)
@@ -177,147 +187,160 @@ class Lachesis:
         self.event_timestamp_indices = {}
         self.event_timestamp_parents = {}
 
-    def defer_event_processing(self, event, instances):
+    def defer_event_processing(self, event, timestamp, instances):
         existing_events = self.process_queue.get(event.id, [])
 
         if not existing_events:
-            self.process_queue[event.id] = [event]
+            self.process_queue[event.id] = [(timestamp, event)]
         else:
-            # Check if there's an existing event with the same timestamp
-            same_timestamp_event = None
-            for existing_event in existing_events:
-                if self.time in self.event_timestamps[existing_event.id]:
-                    same_timestamp_event = existing_event
+            same_timestamp_event_tuple = None
+            for existing_event_tuple in existing_events:
+                if existing_event_tuple[0] == timestamp:
+                    same_timestamp_event_tuple = existing_event_tuple
                     break
 
-            if same_timestamp_event:
-                # Merge parents and set the simultaneous_duplicate property
-                same_timestamp_event.parents = list(
-                    set(same_timestamp_event.parents).union(set(event.parents))
+            if same_timestamp_event_tuple:
+                same_timestamp_event_tuple[1].parents = list(
+                    set(same_timestamp_event_tuple[1].parents).union(set(event.parents))
                 )
-                same_timestamp_event.simultaneous_duplicate = True
+                same_timestamp_event_tuple[1].simultaneous_duplicate = True
             else:
-                # Add the new event without merging parents
-                self.process_queue[event.id].append(event)
+                self.process_queue[event.id].append((timestamp, event))
 
-        # Store the parents of the deferred event
-        if event.id not in self.event_timestamp_parents:
-            self.event_timestamp_parents[event.id] = {}
-        self.event_timestamp_parents[event.id][self.time] = event.parents
+        self.update_request_queue(event, instances)
 
-        for parent_id in event.parents:
-            if parent_id not in self.events and parent_id not in self.process_queue:
-                parent_instance = instances[parent_id[0]]
-                parent_instance.request_queue.append((event.creator, [parent_id]))
+    def update_request_queue(self, event, instances):
+        existing_events = self.process_queue[event.id]
 
-        for existing_event in existing_events:
-            for parent_id in existing_event.parents:
-                if parent_id not in self.events and parent_id not in self.process_queue:
-                    parent_instance = instances[parent_id[0]]
-                    parent_instance.request_queue.append((event.creator, [parent_id]))
+        for timestamp, existing_event in existing_events:
+            parent_id_timestamp_list = self.event_timestamp_parents[
+                (event.id, timestamp)
+            ]
 
-    def process_deferred_events(self):
-        for event_id in self.process_queue:
-            if event_id not in self.next_event_index:
-                self.next_event_index[event_id] = 0
-
-        # print()
-        # print("SORTED PROCESS QUEUE")
-        # print(self.event_timestamps, self.next_event_index)
-
-        sorted_process_queue = sorted(
-            self.process_queue.items(),
-            key=lambda x: min(
-                self.event_timestamps[x[0]]
-            ),  # use min() to get the earliest timestamp
-        )
-
-        for event_id, events in sorted_process_queue:
-            for event in events:
-                # Reference the correct parents for the event at the current timestamp, if available
+            for parent_id, parent_timestamp in parent_id_timestamp_list:
                 if (
-                    event.id in self.event_timestamp_parents
-                    and self.time in self.event_timestamp_parents[event.id]
+                    not any(
+                        (parent_timestamp, parent_id) in parent_event_tuples
+                        for parent_event_tuples in self.process_queue.values()
+                    )
+                    and (parent_id, parent_timestamp)
+                    not in self.event_timestamp_parents
                 ):
-                    event.parents = self.event_timestamp_parents[event.id][self.time]
-                self.process_event(event)
-                # self.next_event_index[event.id] += 1
-            del self.process_queue[event.id]
+                    parent_instance = instances[parent_id[0]]
+                    parent_instance.request_queue.append(
+                        (event.creator, [(parent_id, parent_timestamp)])
+                    )
 
     def process_request_queue(self, instances):
         while self.request_queue:
-            recipient_id, missing_event_ids = self.request_queue.popleft()
+            (
+                recipient_id,
+                missing_event_id_timestamp_tuples,
+            ) = self.request_queue.popleft()
 
             recipient_instance = instances[recipient_id]
-            for event_id in missing_event_ids:
+            for event_id, timestamp in missing_event_id_timestamp_tuples:
                 if (
-                    event_id not in recipient_instance.events
-                    and event_id not in recipient_instance.process_queue
-                ):
-                    print("self.validator", self.validator)
-                    print("\trecipient", recipient_instance.validator)
-                    print("\tself.time", self.time)
-                    print("\tself.cheater_list", self.cheater_list)
-                    print("\trecipient.cheater_list", recipient_instance.cheater_list)
-                    print("\trecipient.time", recipient_instance.time)
-                    print("\tevent ID:", event_id)
-                    print("\tself.events", self.events)
-                    print("\trecipient.events", recipient_instance.events)
-                    print("\trecipient.process_queue", recipient_instance.process_queue)
-                    print()
-
+                    event_id,
+                    timestamp,
+                ) not in recipient_instance.event_timestamp_parents:
                     missing_event = self.events[event_id].copy_basic_properties()
-                    missing_event_timestamp = self.event_timestamps[event_id]
+                    missing_event.parents = [
+                        parent_id
+                        for parent_id, _ in self.event_timestamp_parents[
+                            (event_id, timestamp)
+                        ]
+                    ]
 
                     if event_id not in recipient_instance.process_queue:
-                        recipient_instance.process_queue[event_id] = []
-
-                    recipient_instance.process_queue[event_id].append(missing_event)
-                    recipient_instance.event_timestamps[
-                        event_id
-                    ] = missing_event_timestamp
-
-                    for parent_id in missing_event.parents:
-                        if (
-                            parent_id not in recipient_instance.events
-                            and parent_id not in recipient_instance.process_queue
+                        recipient_instance.process_queue[event_id] = [
+                            (timestamp, missing_event)
+                        ]
+                    else:
+                        if not any(
+                            existing_event_tuple[0] == timestamp
+                            for existing_event_tuple in recipient_instance.process_queue[
+                                event_id
+                            ]
                         ):
-                            self.request_queue.append((recipient_id, [parent_id]))
+                            recipient_instance.process_queue[event_id].append(
+                                (timestamp, missing_event)
+                            )
 
-    def quorum(self, frame_number):
-        if frame_number not in self.quorum_values:
-            self.quorum_values[frame_number] = (
+                    if event_id not in recipient_instance.event_timestamps:
+                        recipient_instance.event_timestamps[event_id] = [timestamp]
+                    else:
+                        recipient_instance.event_timestamps[event_id].append(timestamp)
+
+                    recipient_instance.event_timestamp_parents[
+                        (event_id, timestamp)
+                    ] = self.event_timestamp_parents[(event_id, timestamp)]
+
+                    parent_id_timestamp_list = self.event_timestamp_parents[
+                        (event_id, timestamp)
+                    ]
+
+                    for parent_id, parent_timestamp in parent_id_timestamp_list:
+                        if (
+                            not any(
+                                (parent_timestamp, parent_id) in parent_event_tuples
+                                for parent_event_tuples in recipient_instance.process_queue.values()
+                            )
+                            and (parent_id, parent_timestamp)
+                            not in recipient_instance.event_timestamp_parents
+                        ):
+                            self.request_queue.append(
+                                (recipient_id, [(parent_id, parent_timestamp)])
+                            )
+
+    def process_deferred_events(self):
+        all_event_tuples = []
+        for event_id in self.process_queue:
+            all_event_tuples.extend(self.process_queue[event_id])
+
+        all_event_tuples.sort(key=lambda x: x[0])
+
+        for timestamp, event in all_event_tuples:
+            self.process_event(event)
+
+            self.process_queue[event.id].remove((timestamp, event))
+            if not self.process_queue[event.id]:
+                del self.process_queue[event.id]
+
+    def process_event(self, event):
+        self.events[event.id] = event
+        fork_present = self.detect_forks(event)
+        if fork_present:
+            self.quorum_values[self.frame] = (
                 2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
             )
 
-        return self.quorum_values[frame_number]
+        if event.creator not in self.cheater_list:
+            self.highest_events_observed_by_event(event)
+            self.set_lowest_events_vector(event)
 
-    def highest_events_observed_by_event(self, node):
-        for parent_id in node.parents:
-            # print()
-            # print("self.validator", self.validator)
-            # print("\tself.time", self.time)
-            # print("\tself.process_queue", self.process_queue)
-            # print("\tnode", node.id)
-            # print("\tevents", self.events)
+            is_root, target_frame = self.check_for_roots(event)
+            if is_root:
+                if target_frame not in self.root_set_validators:
+                    self.root_set_validators[target_frame] = SortedSet()
+                if target_frame not in self.root_set_nodes:
+                    self.root_set_nodes[target_frame] = SortedSet()
 
-            if parent_id[0] in self.cheater_list:
-                continue
+                event.frame = target_frame
 
-            parent = self.events[parent_id]
+                self.events[event.id].frame = target_frame
 
-            if (
-                parent.creator not in node.highest_events_observed_by_event
-                or parent.seq > node.highest_events_observed_by_event[parent.creator]
-            ):
-                node.highest_events_observed_by_event[parent.creator] = parent.seq
+                self.frame = target_frame if target_frame > self.frame else self.frame
 
-            for creator, seq in parent.highest_events_observed_by_event.items():
-                if (
-                    creator not in node.highest_events_observed_by_event
-                    or seq > node.highest_events_observed_by_event[creator]
-                ):
-                    node.highest_events_observed_by_event[creator] = seq
+                if event.creator not in self.cheater_list:
+                    self.root_set_validators[target_frame].add(event.creator)
+                    self.root_set_nodes[target_frame].add(event.id)
+
+                self.atropos_voting(event.id)
+
+            else:
+                direct_child = self.events[(event.creator, event.seq - 1)]
+                event.frame = direct_child.frame
 
     def detect_forks(self, event):
         fork_detected = False
@@ -358,6 +381,85 @@ class Lachesis:
             fork_detected = True
 
         return fork_detected
+
+    # def process_request_queue(self, instances):
+    #     while self.request_queue:
+    #         recipient_id, missing_event_ids = self.request_queue.popleft()
+
+    #         recipient_instance = instances[recipient_id]
+    #         for event_id in missing_event_ids:
+    #             if (
+    #                 event_id not in recipient_instance.events
+    #                 and event_id not in recipient_instance.process_queue
+    #             ):
+    #                 missing_event = self.events[event_id].copy_basic_properties()
+    #                 missing_event_timestamp = self.event_timestamps[event_id]
+
+    #                 if event_id not in recipient_instance.process_queue:
+    #                     recipient_instance.process_queue[event_id] = []
+
+    #                 # Add the missing event with the corresponding timestamp
+    #                 recipient_instance.process_queue[event_id].append(
+    #                     (missing_event_timestamp, missing_event)
+    #                 )
+    #                 recipient_instance.event_timestamps[
+    #                     event_id
+    #                 ] = missing_event_timestamp
+
+    #                 for parent_id in missing_event.parents:
+    #                     if (
+    #                         parent_id not in recipient_instance.events
+    #                         and parent_id not in recipient_instance.process_queue
+    #                     ):
+    #                         self.request_queue.append((recipient_id, [parent_id]))
+
+    def quorum(self, frame_number):
+        if frame_number not in self.quorum_values:
+            self.quorum_values[frame_number] = (
+                2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
+            )
+
+        return self.quorum_values[frame_number]
+
+    def highest_events_observed_by_event(self, node):
+        for parent_id in node.parents:
+            # print()
+            # print("self.validator", self.validator)
+            # print("\tself.cheater_list", self.cheater_list)
+            # print("\tself.time", self.time)
+            # print(
+            #     "\tself.process_queue",
+            #     [
+            #         (
+            #             p,
+            #             self.process_queue[p][0][0],
+            #             self.process_queue[p][0][1].parents,
+            #             "---",
+            #         )
+            #         for p in self.process_queue
+            #     ],
+            # )
+            # print("\tnode", node.id)
+            # print("\tnode parents", node.parents)
+            # print("\tevents", self.events)
+
+            if parent_id[0] in self.cheater_list:
+                continue
+
+            parent = self.events[parent_id]
+
+            if (
+                parent.creator not in node.highest_events_observed_by_event
+                or parent.seq > node.highest_events_observed_by_event[parent.creator]
+            ):
+                node.highest_events_observed_by_event[parent.creator] = parent.seq
+
+            for creator, seq in parent.highest_events_observed_by_event.items():
+                if (
+                    creator not in node.highest_events_observed_by_event
+                    or seq > node.highest_events_observed_by_event[creator]
+                ):
+                    node.highest_events_observed_by_event[creator] = seq
 
     def forkless_cause(self, event_a, event_b):
         if event_a.id[0] in self.cheater_list or event_b.id[0] in self.cheater_list:
@@ -403,42 +505,6 @@ class Lachesis:
                     return True, direct_child.frame + 1
 
             return False, None
-
-    def process_event(self, event):
-        event.count += 1
-        self.events[event.id] = event
-        fork_present = self.detect_forks(event)
-        if fork_present:
-            self.quorum_values[self.frame] = (
-                2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
-            )
-
-        if event.creator not in self.cheater_list:
-            self.highest_events_observed_by_event(event)
-            self.set_lowest_events_vector(event)
-
-            is_root, target_frame = self.check_for_roots(event)
-            if is_root:
-                if target_frame not in self.root_set_validators:
-                    self.root_set_validators[target_frame] = SortedSet()
-                if target_frame not in self.root_set_nodes:
-                    self.root_set_nodes[target_frame] = SortedSet()
-
-                event.frame = target_frame
-
-                self.events[event.id].frame = target_frame
-
-                self.frame = target_frame if target_frame > self.frame else self.frame
-
-                if event.creator not in self.cheater_list:
-                    self.root_set_validators[target_frame].add(event.creator)
-                    self.root_set_nodes[target_frame].add(event.id)
-
-                self.atropos_voting(event.id)
-
-            else:
-                direct_child = self.events[(event.creator, event.seq - 1)]
-                event.frame = direct_child.frame
 
     def forkless_cause_quorum(self, event, frame_number):
         forkless_cause_count = 0
@@ -690,10 +756,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_4.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_64.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_4.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_64.txt", "result_multiinstance.pdf", True
     )
