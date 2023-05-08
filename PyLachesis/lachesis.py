@@ -136,7 +136,6 @@ class Event:
         creator,
         parents,
         frame=None,
-        count=0,
         simultaneous_duplicate=False,
     ):
         self.id = id
@@ -146,7 +145,6 @@ class Event:
         self.lowest_events_vector = {}
         self.highest_events_observed_by_event = {}
         self.frame = frame
-        self.count = count
         self.simultaneous_duplicate = simultaneous_duplicate
 
     def copy_basic_properties(self):
@@ -310,10 +308,11 @@ class Lachesis:
     def process_event(self, event):
         self.events[event.id] = event
         fork_present = self.detect_forks(event)
-        if fork_present:
-            self.quorum_values[self.frame] = (
-                2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
-            )
+        # if fork_present:
+        #     # self.quorum_values[self.frame] = (
+        #     #     2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
+        #     # )
+        #     print()
 
         if event.creator not in self.cheater_list:
             self.highest_events_observed_by_event(event)
@@ -342,6 +341,34 @@ class Lachesis:
                 direct_child = self.events[(event.creator, event.seq - 1)]
                 event.frame = direct_child.frame
 
+        # if self.validator == "A" and self.time < 10:
+        #     print()
+        #     print("validator:", self.validator)
+        #     print("\tself.time:", self.time)
+        #     print(
+        #         "\tself.events:",
+        #         [(e, self.events[e].simultaneous_duplicate) for e in self.events],
+        #     )
+        #     print(
+        #         "\tself.event_timestamp_parents:",
+        #     )
+        #     print("\tself.cheater_list:", self.cheater_list)
+        #     print("\tself.process_queue:", self.process_queue)
+        #     print("\tself.frame", self.frame)
+        #     print("\tself.quorum", self.quorum(self.frame))
+        #     print("\tself.validator_weights", self.validator_weights)
+        #     print("\tself.root_set", self.root_set_nodes)
+        #     print("\t\tevent", event.id)
+        #     print("\t\tevent parents", event.parents)
+        #     print("\t\tevent highest", event.highest_events_observed_by_event)
+        #     print(
+        #         "\t\tparents' lowest",
+        #         [
+        #             (event, self.events[event].lowest_events_vector)
+        #             for event in event.parents
+        #         ],
+        #     )
+
     def detect_forks(self, event):
         fork_detected = False
 
@@ -355,17 +382,6 @@ class Lachesis:
         if event.id in parent_ids:
             self.cheater_list.add(event.creator)
             self.validator_weights[event.creator] = 0
-            fork_detected = True
-
-        cheater_validators = set()
-        for parent_id in set(parent_ids):
-            if parent_ids.count(parent_id) > 1:
-                cheater_validator = parent_id[0]
-                cheater_validators.add(cheater_validator)
-
-        for cheater_validator in cheater_validators:
-            self.cheater_list.add(cheater_validator)
-            self.validator_weights[cheater_validator] = 0
             fork_detected = True
 
         validator = event.creator
@@ -756,10 +772,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_64.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_95.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_64.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_95.txt", "result_multiinstance.pdf", True
     )
