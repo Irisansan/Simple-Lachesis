@@ -189,31 +189,49 @@ class Lachesis:
         existing_events = self.process_queue.get(event.id, [])
 
         if not existing_events:
-            self.process_queue[event.id] = [(timestamp, event)]
+            self.process_queue[event.id] = [
+                {
+                    "timestamp": timestamp,
+                    "event": event,
+                    "parents": self.event_timestamp_parents.get(
+                        (event.id, timestamp), []
+                    ),
+                }
+            ]
         else:
-            same_timestamp_event_tuple = None
-            for existing_event_tuple in existing_events:
-                if existing_event_tuple[0] == timestamp:
-                    same_timestamp_event_tuple = existing_event_tuple
+            same_timestamp_event_dict = None
+            for existing_event_dict in existing_events:
+                if existing_event_dict["timestamp"] == timestamp:
+                    same_timestamp_event_dict = existing_event_dict
                     break
 
-            if same_timestamp_event_tuple:
-                same_timestamp_event_tuple[1].parents = list(
-                    set(same_timestamp_event_tuple[1].parents).union(set(event.parents))
+            if same_timestamp_event_dict:
+                same_timestamp_event_dict["event"].parents = list(
+                    set(same_timestamp_event_dict["event"].parents).union(
+                        set(event.parents)
+                    )
                 )
-                same_timestamp_event_tuple[1].simultaneous_duplicate = True
+                same_timestamp_event_dict["event"].simultaneous_duplicate = True
             else:
-                self.process_queue[event.id].append((timestamp, event))
+                self.process_queue[event.id].append(
+                    {
+                        "timestamp": timestamp,
+                        "event": event,
+                        "parents": self.event_timestamp_parents.get(
+                            (event.id, timestamp), []
+                        ),
+                    }
+                )
 
         self.update_request_queue(event, instances)
 
     def update_request_queue(self, event, instances):
         existing_events = self.process_queue[event.id]
 
-        for timestamp, existing_event in existing_events:
-            parent_id_timestamp_list = self.event_timestamp_parents[
-                (event.id, timestamp)
-            ]
+        for event_data in existing_events:
+            timestamp = event_data["timestamp"]
+            existing_event = event_data["event"]
+            parent_id_timestamp_list = event_data["parents"]
 
             for parent_id, parent_timestamp in parent_id_timestamp_list:
                 if (
@@ -252,27 +270,30 @@ class Lachesis:
 
                     if event_id not in recipient_instance.process_queue:
                         recipient_instance.process_queue[event_id] = [
-                            (timestamp, missing_event)
+                            {
+                                "timestamp": timestamp,
+                                "event": missing_event,
+                                "parents": self.event_timestamp_parents.get(
+                                    (event_id, timestamp), []
+                                ),
+                            }
                         ]
                     else:
                         if not any(
-                            existing_event_tuple[0] == timestamp
-                            for existing_event_tuple in recipient_instance.process_queue[
+                            existing_event_dict["timestamp"] == timestamp
+                            for existing_event_dict in recipient_instance.process_queue[
                                 event_id
                             ]
                         ):
                             recipient_instance.process_queue[event_id].append(
-                                (timestamp, missing_event)
+                                {
+                                    "timestamp": timestamp,
+                                    "event": missing_event,
+                                    "parents": self.event_timestamp_parents.get(
+                                        (event_id, timestamp), []
+                                    ),
+                                }
                             )
-
-                    if event_id not in recipient_instance.event_timestamps:
-                        recipient_instance.event_timestamps[event_id] = [timestamp]
-                    else:
-                        recipient_instance.event_timestamps[event_id].append(timestamp)
-
-                    recipient_instance.event_timestamp_parents[
-                        (event_id, timestamp)
-                    ] = self.event_timestamp_parents[(event_id, timestamp)]
 
                     parent_id_timestamp_list = self.event_timestamp_parents[
                         (event_id, timestamp)
@@ -281,8 +302,13 @@ class Lachesis:
                     for parent_id, parent_timestamp in parent_id_timestamp_list:
                         if (
                             not any(
-                                (parent_timestamp, parent_id) in parent_event_tuples
-                                for parent_event_tuples in recipient_instance.process_queue.values()
+                                (
+                                    existing_event_dict["timestamp"],
+                                    existing_event_dict["event"].id,
+                                )
+                                == (parent_timestamp, parent_id)
+                                for existing_event_dicts in recipient_instance.process_queue.values()
+                                for existing_event_dict in existing_event_dicts
                             )
                             and (parent_id, parent_timestamp)
                             not in recipient_instance.event_timestamp_parents
@@ -296,12 +322,26 @@ class Lachesis:
         for event_id in self.process_queue:
             all_event_tuples.extend(self.process_queue[event_id])
 
-        all_event_tuples.sort(key=lambda x: x[0])
+        all_event_tuples.sort(key=lambda x: x["timestamp"])
 
-        for timestamp, event in all_event_tuples:
+        for event_data in all_event_tuples:
+            timestamp = event_data["timestamp"]
+            event = event_data["event"]
+
+            if event.id not in self.event_timestamps:
+                self.event_timestamps[event.id] = [timestamp]
+            else:
+                self.event_timestamps[event.id].append(timestamp)
+
+            self.event_timestamp_parents[(event.id, timestamp)] = event_data["parents"]
+
+            # print("validator", self.validator)
+            # print("\tself.events:", self.events)
+            # print("\tself.process_queue:", self.process_queue)
+
             self.process_event(event)
 
-            self.process_queue[event.id].remove((timestamp, event))
+            self.process_queue[event.id].remove(event_data)
             if not self.process_queue[event.id]:
                 del self.process_queue[event.id]
 
@@ -341,34 +381,6 @@ class Lachesis:
                 direct_child = self.events[(event.creator, event.seq - 1)]
                 event.frame = direct_child.frame
 
-        # if self.validator == "A" and self.time < 10:
-        #     print()
-        #     print("validator:", self.validator)
-        #     print("\tself.time:", self.time)
-        #     print(
-        #         "\tself.events:",
-        #         [(e, self.events[e].simultaneous_duplicate) for e in self.events],
-        #     )
-        #     print(
-        #         "\tself.event_timestamp_parents:",
-        #     )
-        #     print("\tself.cheater_list:", self.cheater_list)
-        #     print("\tself.process_queue:", self.process_queue)
-        #     print("\tself.frame", self.frame)
-        #     print("\tself.quorum", self.quorum(self.frame))
-        #     print("\tself.validator_weights", self.validator_weights)
-        #     print("\tself.root_set", self.root_set_nodes)
-        #     print("\t\tevent", event.id)
-        #     print("\t\tevent parents", event.parents)
-        #     print("\t\tevent highest", event.highest_events_observed_by_event)
-        #     print(
-        #         "\t\tparents' lowest",
-        #         [
-        #             (event, self.events[event].lowest_events_vector)
-        #             for event in event.parents
-        #         ],
-        #     )
-
     def detect_forks(self, event):
         fork_detected = False
 
@@ -398,37 +410,6 @@ class Lachesis:
 
         return fork_detected
 
-    # def process_request_queue(self, instances):
-    #     while self.request_queue:
-    #         recipient_id, missing_event_ids = self.request_queue.popleft()
-
-    #         recipient_instance = instances[recipient_id]
-    #         for event_id in missing_event_ids:
-    #             if (
-    #                 event_id not in recipient_instance.events
-    #                 and event_id not in recipient_instance.process_queue
-    #             ):
-    #                 missing_event = self.events[event_id].copy_basic_properties()
-    #                 missing_event_timestamp = self.event_timestamps[event_id]
-
-    #                 if event_id not in recipient_instance.process_queue:
-    #                     recipient_instance.process_queue[event_id] = []
-
-    #                 # Add the missing event with the corresponding timestamp
-    #                 recipient_instance.process_queue[event_id].append(
-    #                     (missing_event_timestamp, missing_event)
-    #                 )
-    #                 recipient_instance.event_timestamps[
-    #                     event_id
-    #                 ] = missing_event_timestamp
-
-    #                 for parent_id in missing_event.parents:
-    #                     if (
-    #                         parent_id not in recipient_instance.events
-    #                         and parent_id not in recipient_instance.process_queue
-    #                     ):
-    #                         self.request_queue.append((recipient_id, [parent_id]))
-
     def quorum(self, frame_number):
         if frame_number not in self.quorum_values:
             self.quorum_values[frame_number] = (
@@ -439,26 +420,6 @@ class Lachesis:
 
     def highest_events_observed_by_event(self, node):
         for parent_id in node.parents:
-            # print()
-            # print("self.validator", self.validator)
-            # print("\tself.cheater_list", self.cheater_list)
-            # print("\tself.time", self.time)
-            # print(
-            #     "\tself.process_queue",
-            #     [
-            #         (
-            #             p,
-            #             self.process_queue[p][0][0],
-            #             self.process_queue[p][0][1].parents,
-            #             "---",
-            #         )
-            #         for p in self.process_queue
-            #     ],
-            # )
-            # print("\tnode", node.id)
-            # print("\tnode parents", node.parents)
-            # print("\tevents", self.events)
-
             if parent_id[0] in self.cheater_list:
                 continue
 
@@ -746,17 +707,6 @@ class Lachesis:
             self.events.values(), key=lambda e: self.event_timestamps[e.id]
         )
 
-        #     print(f"  Timestamp: {self.event_timestamps[event.id]}")
-        #     print(f"  Sequence: {event.seq}")
-        #     print(f"  Creator: {event.creator}")
-        #     print(f"  Parents: {event.parents}")
-        #     print(f"  Lowest Events Vector: {event.lowest_events_vector}")
-        #     print(
-        #         f"  Highest Events Observed by Event: {event.highest_events_observed_by_event}"
-        #     )
-        #     print(f"  Frame: {event.frame}")
-        #     print("")
-
         return {
             "graph": graph_file,
             "atropos_roots": self.atropos_roots,
@@ -772,10 +722,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_95.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_84.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_95.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_84.txt", "result_multiinstance.pdf", True
     )
