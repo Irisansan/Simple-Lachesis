@@ -112,6 +112,8 @@ class LachesisMultiInstance:
 
         if create_graph:
             for instance in self.instances.values():
+                # print("instance:", instance.validator)
+                # print("quorum:", instance.quorum_values)
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
 
@@ -348,11 +350,11 @@ class Lachesis:
     def process_event(self, event):
         self.events[event.id] = event
         fork_present = self.detect_forks(event)
-        # if fork_present:
-        #     # self.quorum_values[self.frame] = (
-        #     #     2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
-        #     # )
-        #     print()
+        if self.frame not in self.quorum_values:
+            self.quorum_values[self.frame] = (
+                2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
+            )
+            print()
 
         if event.creator not in self.cheater_list:
             self.highest_events_observed_by_event(event)
@@ -722,10 +724,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_84.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_31.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_84.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_31.txt", "result_multiinstance.pdf", True
     )
