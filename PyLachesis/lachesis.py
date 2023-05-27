@@ -43,17 +43,12 @@ class LachesisMultiInstance:
         self.instances = {}
         self.nodes = []
 
-    def initialize_instances(self):
-        validators = set(node.id[0] for node in self.nodes)
+    def initialize_instances(self, validators, weights):
         for validator in validators:
             self.instances[validator] = Lachesis(validator)
             self.instances[validator].validators = validators.copy()
-
-            self.instances[validator].validator_weights = {
-                v: next(node for node in self.nodes if node.id[0] == v).weight
-                for v in validators
-            }
-            self.instances[validator].root_set_validators[1] = validators.copy()
+            self.instances[validator].set_validator_weights(validators, weights)
+            self.instances[validator].root_set_validators[1] = SortedSet(validators)
 
     def process_graph_by_timesteps(self):
         max_timestamp = max(node.timestamp for node in self.nodes)
@@ -107,13 +102,17 @@ class LachesisMultiInstance:
     def run_lachesis_multi_instance(self, input_file, output_file, create_graph=False):
         nodes = convert_input_to_DAG(input_file)
         self.nodes = nodes
-        self.initialize_instances()
+
+        # Prepare lists of validators and weights
+        sorted_nodes = sorted(nodes, key=lambda node: node.timestamp)
+        validators = [node.id[0] for node in sorted_nodes]
+        weights = [node.weight for node in sorted_nodes]
+
+        self.initialize_instances(validators, weights)
         self.process_graph_by_timesteps()
 
         if create_graph:
             for instance in self.instances.values():
-                # print("instance:", instance.validator)
-                # print("quorum:", instance.quorum_values)
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
 
@@ -186,6 +185,20 @@ class Lachesis:
         self.event_parents = {}
         self.event_timestamp_indices = {}
         self.event_timestamp_parents = {}
+        self.forks = {}  # {validator: sequence of fork}
+        self.forking_validator_observers = (
+            {}
+        )  # {forking_validator => observing_validators}
+        self.initial_validator_weights = {}  # {validator: weight}
+        self.validator_weights = {}  # {validator: weight}
+        self.weights_in_quorum_calculation = {}  # {validator: weight}
+
+    def set_validator_weights(self, validators, weights):
+        self.validators = validators
+        self.validator_weights = dict(zip(validators, weights))
+        self.initial_validator_weights = self.validator_weights.copy()
+        self.validator_weights = self.validator_weights.copy()
+        self.weights_in_quorum_calculation = self.validator_weights.copy()
 
     def defer_event_processing(self, event, timestamp, instances):
         existing_events = self.process_queue.get(event.id, [])
@@ -349,7 +362,13 @@ class Lachesis:
 
     def process_event(self, event):
         self.events[event.id] = event
-        fork_present = self.detect_forks(event)
+        fork_detected = self.detect_forks(event)
+
+        if fork_detected:
+            self.forks[event.creator] = event.seq
+            if event.creator not in self.forking_validator_observers:
+                self.forking_validator_observers[event.creator] = set()
+            self.validator_weights[event.creator] = 0
 
         if self.frame not in self.quorum_values:
             self.quorum(self.frame)
@@ -357,6 +376,8 @@ class Lachesis:
         if event.creator not in self.cheater_list:
             self.highest_events_observed_by_event(event)
             self.set_lowest_events_vector(event)
+
+            self.update_forking_validator_observers(event)
 
             is_root, target_frame = self.check_for_roots(event)
             if is_root:
@@ -413,10 +434,37 @@ class Lachesis:
     def quorum(self, frame_number):
         if frame_number not in self.quorum_values:
             self.quorum_values[frame_number] = (
-                2 * sum([self.validator_weights[x] for x in self.validators]) // 3 + 1
+                2 * sum(self.weights_in_quorum_calculation.values()) // 3 + 1
             )
 
         return self.quorum_values[frame_number]
+
+    def update_forking_validator_observers(self, event):
+        for validator, seq in list(
+            self.forks.items()
+        ):  # Create a copy of the dictionary for iteration
+            if (
+                validator in event.highest_events_observed_by_event
+                and event.highest_events_observed_by_event[validator] >= seq
+            ):
+                self.forking_validator_observers[validator].add(event.creator)
+
+        for validator, seq in list(
+            self.forks.items()
+        ):  # Create a copy of the dictionary for iteration
+            w = sum(self.weights_in_quorum_calculation.values())
+            c = self.initial_validator_weights[validator]
+            if ((w - c) * 2) // 3 + 1 >= sum(
+                self.weights_in_quorum_calculation[v]
+                for v in self.forking_validator_observers[validator]
+            ):
+                self.weights_in_quorum_calculation[validator] = self.validator_weights[
+                    validator
+                ]
+                self.quorum_values[event.frame] = (
+                    2 * sum(self.weights_in_quorum_calculation.values()) // 3 + 1
+                )
+                del self.forks[validator]  # Delete from original dictionary
 
     def highest_events_observed_by_event(self, node):
         for parent_id in node.parents:
@@ -541,13 +589,13 @@ class Lachesis:
     def process_graph_by_timesteps(self, nodes):
         sorted_nodes = sorted(nodes, key=lambda node: node.timestamp)
         max_timestamp = max(node.timestamp for node in nodes)
-        validators = set(node.id[0] for node in nodes)
-        self.root_set_validators[1] = validators
-        self.validators = validators
-        self.validator_weights = {
-            v: next(node for node in sorted_nodes if node.id[0] == v).weight
-            for v in validators
-        }
+
+        # Prepare lists of validators and weights
+        validators = [node.id[0] for node in sorted_nodes]
+        weights = [node.weight for node in sorted_nodes]
+
+        # Set validator weights using the prepared lists
+        self.set_validator_weights(validators, weights)
 
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
