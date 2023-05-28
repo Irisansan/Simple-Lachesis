@@ -113,6 +113,9 @@ class LachesisMultiInstance:
 
         if create_graph:
             for instance in self.instances.values():
+                print("validator:", instance.validator)
+                print("quorum:", instance.quorum_values)
+                print()
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
 
@@ -365,7 +368,8 @@ class Lachesis:
         fork_detected = self.detect_forks(event)
 
         if fork_detected:
-            self.forks[event.creator] = event.seq
+            if event.creator not in self.forks:
+                self.forks[event.creator] = event.seq
             if event.creator not in self.forking_validator_observers:
                 self.forking_validator_observers[event.creator] = set()
             self.validator_weights[event.creator] = 0
@@ -449,27 +453,35 @@ class Lachesis:
             ):
                 self.forking_validator_observers[validator].add(event.creator)
 
+        print(self.forking_validator_observers)
+        print(event.id)
+        print(event.highest_events_observed_by_event)
+        print()
+
         for validator, seq in list(
             self.forks.items()
         ):  # Create a copy of the dictionary for iteration
-            w = sum(self.weights_in_quorum_calculation.values())
-            c = self.initial_validator_weights[validator]
-            if ((w - c) * 2) // 3 + 1 >= sum(
-                self.weights_in_quorum_calculation[v]
-                for v in self.forking_validator_observers[validator]
-            ):
-                self.weights_in_quorum_calculation[validator] = self.validator_weights[
-                    validator
-                ]
-                self.quorum_values[event.frame] = (
-                    2 * sum(self.weights_in_quorum_calculation.values()) // 3 + 1
-                )
-                del self.forks[validator]  # Delete from original dictionary
+            if self.weights_in_quorum_calculation[validator] != 0:
+                # Check if every single validator that is not in the cheater list observes a forking validator
+                for v in self.validators:
+                    if (
+                        v not in self.cheater_list
+                        and v not in self.forking_validator_observers[validator]
+                    ):
+                        break  # As soon as a validator doesn't observe the forking one, break the loop
+                else:  # If the loop didn't break, every non-cheating validator observes the forking validator
+                    self.weights_in_quorum_calculation[
+                        validator
+                    ] = self.validator_weights[validator]
+                    self.quorum_values[self.frame] = (
+                        2 * sum(self.weights_in_quorum_calculation.values()) // 3 + 1
+                    )
+                    del self.forks[validator]  # Delete from original dictionary
 
     def highest_events_observed_by_event(self, node):
         for parent_id in node.parents:
-            if parent_id[0] in self.cheater_list:
-                continue
+            # if parent_id[0] in self.cheater_list:
+            #     continue
 
             parent = self.events[parent_id]
 
@@ -770,10 +782,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_81.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_1.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_81.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_1.txt", "result_multiinstance.pdf", True
     )
