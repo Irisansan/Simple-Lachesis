@@ -103,7 +103,6 @@ class LachesisMultiInstance:
         nodes = convert_input_to_DAG(input_file)
         self.nodes = nodes
 
-        # Prepare lists of validators and weights
         sorted_nodes = sorted(nodes, key=lambda node: node.timestamp)
         validators = [node.id[0] for node in sorted_nodes]
         weights = [node.weight for node in sorted_nodes]
@@ -113,9 +112,6 @@ class LachesisMultiInstance:
 
         if create_graph:
             for instance in self.instances.values():
-                print("validator:", instance.validator)
-                print("quorum:", instance.quorum_values)
-                print()
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
 
@@ -188,13 +184,11 @@ class Lachesis:
         self.event_parents = {}
         self.event_timestamp_indices = {}
         self.event_timestamp_parents = {}
-        self.forks = {}  # {validator: sequence of fork}
-        self.forking_validator_observers = (
-            {}
-        )  # {forking_validator => observing_validators}
-        self.initial_validator_weights = {}  # {validator: weight}
-        self.validator_weights = {}  # {validator: weight}
-        self.weights_in_quorum_calculation = {}  # {validator: weight}
+        self.forks = {}
+        self.forking_validator_observers = {}
+        self.initial_validator_weights = {}
+        self.validator_weights = {}
+        self.weights_in_quorum_calculation = {}
 
     def set_validator_weights(self, validators, weights):
         self.validators = validators
@@ -353,10 +347,6 @@ class Lachesis:
 
             self.event_timestamp_parents[(event.id, timestamp)] = event_data["parents"]
 
-            # print("validator", self.validator)
-            # print("\tself.events:", self.events)
-            # print("\tself.process_queue:", self.process_queue)
-
             self.process_event(event)
 
             self.process_queue[event.id].remove(event_data)
@@ -444,45 +434,32 @@ class Lachesis:
         return self.quorum_values[frame_number]
 
     def update_forking_validator_observers(self, event):
-        for validator, seq in list(
-            self.forks.items()
-        ):  # Create a copy of the dictionary for iteration
+        for validator, seq in list(self.forks.items()):
             if (
                 validator in event.highest_events_observed_by_event
                 and event.highest_events_observed_by_event[validator] >= seq
             ):
                 self.forking_validator_observers[validator].add(event.creator)
 
-        print(self.forking_validator_observers)
-        print(event.id)
-        print(event.highest_events_observed_by_event)
-        print()
-
-        for validator, seq in list(
-            self.forks.items()
-        ):  # Create a copy of the dictionary for iteration
+        for validator, seq in list(self.forks.items()):
             if self.weights_in_quorum_calculation[validator] != 0:
-                # Check if every single validator that is not in the cheater list observes a forking validator
                 for v in self.validators:
                     if (
                         v not in self.cheater_list
                         and v not in self.forking_validator_observers[validator]
                     ):
-                        break  # As soon as a validator doesn't observe the forking one, break the loop
-                else:  # If the loop didn't break, every non-cheating validator observes the forking validator
+                        break
+                else:
                     self.weights_in_quorum_calculation[
                         validator
                     ] = self.validator_weights[validator]
                     self.quorum_values[self.frame] = (
                         2 * sum(self.weights_in_quorum_calculation.values()) // 3 + 1
                     )
-                    del self.forks[validator]  # Delete from original dictionary
+                    del self.forks[validator]
 
     def highest_events_observed_by_event(self, node):
         for parent_id in node.parents:
-            # if parent_id[0] in self.cheater_list:
-            #     continue
-
             parent = self.events[parent_id]
 
             if (
@@ -602,11 +579,9 @@ class Lachesis:
         sorted_nodes = sorted(nodes, key=lambda node: node.timestamp)
         max_timestamp = max(node.timestamp for node in nodes)
 
-        # Prepare lists of validators and weights
         validators = [node.id[0] for node in sorted_nodes]
         weights = [node.weight for node in sorted_nodes]
 
-        # Set validator weights using the prepared lists
         self.set_validator_weights(validators, weights)
 
         for current_time in range(max_timestamp + 1):
@@ -782,10 +757,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_1.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_54.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_1.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_54.txt", "result_multiinstance.pdf", True
     )
