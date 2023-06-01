@@ -48,7 +48,6 @@ class LachesisMultiInstance:
             self.instances[validator] = Lachesis(validator)
             self.instances[validator].validators = validators.copy()
             self.instances[validator].set_validator_weights(validators, weights)
-            self.instances[validator].root_set_validators[1] = SortedSet(validators)
 
     def process_graph_by_timesteps(self):
         max_timestamp = max(node.timestamp for node in self.nodes)
@@ -187,14 +186,12 @@ class Lachesis:
         self.forks = {}
         self.initial_validator_weights = {}
         self.validator_weights = {}
-        self.weights_in_quorum_calculation = {}
 
     def set_validator_weights(self, validators, weights):
         self.validators = validators
         self.validator_weights = dict(zip(validators, weights))
         self.initial_validator_weights = self.validator_weights.copy()
         self.validator_weights = self.validator_weights.copy()
-        self.weights_in_quorum_calculation = self.validator_weights.copy()
 
     def defer_event_processing(self, event, timestamp, instances):
         existing_events = self.process_queue.get(event.id, [])
@@ -240,8 +237,6 @@ class Lachesis:
         existing_events = self.process_queue[event.id]
 
         for event_data in existing_events:
-            timestamp = event_data["timestamp"]
-            existing_event = event_data["event"]
             parent_id_timestamp_list = event_data["parents"]
 
             for parent_id, parent_timestamp in parent_id_timestamp_list:
@@ -423,7 +418,7 @@ class Lachesis:
     def quorum(self, frame_number):
         if frame_number not in self.quorum_values:
             self.quorum_values[frame_number] = (
-                2 * sum(self.weights_in_quorum_calculation.values()) // 3 + 1
+                2 * sum(self.validator_weights.values()) // 3 + 1
             )
 
         return self.quorum_values[frame_number]
@@ -707,10 +702,6 @@ class Lachesis:
         self.process_graph_by_timesteps(nodes)
         if create_graph:
             self.graph_results(output_file)
-
-        sorted_events = sorted(
-            self.events.values(), key=lambda e: self.event_timestamps[e.id]
-        )
 
         return {
             "graph": graph_file,
