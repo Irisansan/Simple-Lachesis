@@ -185,7 +185,6 @@ class Lachesis:
         self.event_timestamp_indices = {}
         self.event_timestamp_parents = {}
         self.forks = {}
-        self.forking_validator_observers = {}
         self.initial_validator_weights = {}
         self.validator_weights = {}
         self.weights_in_quorum_calculation = {}
@@ -360,8 +359,6 @@ class Lachesis:
         if fork_detected:
             if event.creator not in self.forks:
                 self.forks[event.creator] = event.seq
-            if event.creator not in self.forking_validator_observers:
-                self.forking_validator_observers[event.creator] = set()
             self.validator_weights[event.creator] = 0
 
         if self.frame not in self.quorum_values:
@@ -370,8 +367,6 @@ class Lachesis:
         if event.creator not in self.cheater_list:
             self.highest_events_observed_by_event(event)
             self.set_lowest_events_vector(event)
-
-            self.update_forking_validator_observers(event)
 
             is_root, target_frame = self.check_for_roots(event)
             if is_root:
@@ -432,31 +427,6 @@ class Lachesis:
             )
 
         return self.quorum_values[frame_number]
-
-    def update_forking_validator_observers(self, event):
-        for validator, seq in list(self.forks.items()):
-            if (
-                validator in event.highest_events_observed_by_event
-                and event.highest_events_observed_by_event[validator] >= seq
-            ):
-                self.forking_validator_observers[validator].add(event.creator)
-
-        for validator, seq in list(self.forks.items()):
-            if self.weights_in_quorum_calculation[validator] != 0:
-                for v in self.validators:
-                    if (
-                        v not in self.cheater_list
-                        and v not in self.forking_validator_observers[validator]
-                    ):
-                        break
-                else:
-                    self.weights_in_quorum_calculation[
-                        validator
-                    ] = self.validator_weights[validator]
-                    self.quorum_values[self.frame] = (
-                        2 * sum(self.weights_in_quorum_calculation.values()) // 3 + 1
-                    )
-                    del self.forks[validator]
 
     def highest_events_observed_by_event(self, node):
         for parent_id in node.parents:
@@ -757,10 +727,10 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_54.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_81.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_54.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_81.txt", "result_multiinstance.pdf", True
     )
