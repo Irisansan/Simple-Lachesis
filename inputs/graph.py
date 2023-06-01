@@ -86,8 +86,32 @@ def createGraph(
     parent_count = {}
     cheater_nodes = {}
 
+    # Prevent adding new nodes or stagger adding nodes before/after level 25
+    stop_after_level_25 = (
+        [random.random() < 0.1 for _ in range(num_nodes)]
+        if num_nodes > 10
+        else [False] * num_nodes
+    )
+    start_after_level_25 = (
+        [random.random() < 0.1 for _ in range(num_nodes)]
+        if num_nodes > 10
+        else [False] * num_nodes
+    )
+
+    # Make sure the two conditions do not overlap
+    for j in range(num_nodes):
+        if stop_after_level_25[j] and start_after_level_25[j]:
+            if random.random() < 0.5:
+                stop_after_level_25[j] = False
+            else:
+                start_after_level_25[j] = False
+
     for i in range(num_levels):
         for j in range(num_nodes):
+            if (i > 25 and stop_after_level_25[j]) or (
+                i < 26 and start_after_level_25[j]
+            ):
+                continue
             if random.random() < node_present_probability:
                 node = (i, j)
                 G.add_node(node)
@@ -375,10 +399,12 @@ def generate_graphs(
             else neighbor_prob_input
         )
 
-        graph_filename = f"{base_dir}/graph_{starting_index + i}.pdf"
-        txt_filename_format_one = f"{base_dir}/graph_{starting_index + i}.txt"
-        txt_filename_format_two = f"{base_dir}/events_{starting_index + i}.txt"
-        neighbor_filename = f"{base_dir}/neighbors_{starting_index + i}.txt"
+        graph_index = str(starting_index + i)
+
+        graph_filename = f"{base_dir}/graph_{graph_index}.pdf"
+        txt_filename_format_one = f"{base_dir}/graph_{graph_index}.txt"
+        txt_filename_format_two = f"{base_dir}/events_{graph_index}.txt"
+        neighbor_filename = f"{base_dir}/neighbors_{graph_index}.txt"
         createGraph(
             cheater_input,
             num_levels,
@@ -418,12 +444,18 @@ if __name__ == "__main__":
     neighbor_prob_input = input(
         "Enter the probability that any two given validators are neighbors or type 'r' or 'random' for a random value each iteration: (Default is 0.5) "
     )
-    base_dir = input("Enter the base directory for output files: ")
+    base_dir = input(
+        "Enter the base directory for output files: (Default is current directory) "
+    )
     starting_index = input(
         "Enter the starting index for file numbering: (Default is 1) "
     )
 
-    starting_index = int(starting_index) if starting_index else 1
+    base_dir = "." if not base_dir or base_dir == "" else base_dir
+
+    starting_index = (
+        int(starting_index) if starting_index and starting_index != "" else 1
+    )
 
     generate_graphs(
         annotate_graph,
