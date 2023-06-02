@@ -380,6 +380,9 @@ class Lachesis:
                     self.root_set_validators[target_frame].add(event.creator)
                     self.root_set_nodes[target_frame].add(event.id)
 
+                if self.frame not in self.quorum_values:
+                    self.quorum(self.frame)
+
                 self.atropos_voting(event.id)
 
             else:
