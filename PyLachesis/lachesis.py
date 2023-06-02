@@ -124,10 +124,14 @@ class LachesisMultiInstance:
         self.initialize_instances(validators, weights)
         self.process_graph_by_timesteps()
 
-        if create_graph:
-            for instance in self.instances.values():
+        for instance in self.instances.values():
+            if create_graph:
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
+            self.lachesis_state = instance.return_lachesis_state()
+            print("instance:", instance.validator)
+            print("lachesis_state:", self.lachesis_state)
+            print()
 
 
 class Node:
@@ -201,6 +205,7 @@ class Lachesis:
         self.forks = {}
         self.initial_validator_weights = {}
         self.validator_weights = {}
+        self.lachesis_state = None
 
     def initialize_validator_weights(self, validators, weights):
         self.validators = validators
@@ -723,16 +728,21 @@ class Lachesis:
         self.process_graph_by_timesteps(nodes)
         if create_graph:
             self.graph_results(output_file)
+        self.lachesis_state = self.return_lachesis_state()
+        print("base validator")
+        print("lachesis_state:", self.lachesis_state)
+        print()
 
+    def return_lachesis_state(self):
         return {
-            "graph": graph_file,
-            "atropos_roots": self.atropos_roots,
-            "frame": self.frame,
-            "block": self.block,
-            "frame_to_decide": self.frame_to_decide,
-            "root_set_nodes": self.root_set_nodes,
-            "root_set_validators": self.root_set_validators,
-            "election_votes": self.election_votes,
+            "self.frame": self.frame,
+            "self.block": self.block,
+            "self.root_set_validators": self.root_set_validators,
+            "self.root_set_nodes": self.root_set_nodes,
+            "self.frame_to_decide": self.frame_to_decide,
+            "self.cheater_list": self.cheater_list,
+            "self.time": self.time,
+            "self.atropos_roots": self.atropos_roots,
         }
 
 
@@ -744,5 +754,5 @@ if __name__ == "__main__":
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_81.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs_with_cheaters/graph_81.txt", "result_multiinstance.pdf", False
     )
