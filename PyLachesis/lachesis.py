@@ -42,12 +42,21 @@ class LachesisMultiInstance:
     def __init__(self):
         self.instances = {}
         self.nodes = []
+        self.seen_validators = set()
 
     def initialize_instances(self, validators, weights):
         for validator in validators:
             self.instances[validator] = Lachesis(validator)
             self.instances[validator].validators = validators.copy()
-            self.instances[validator].set_validator_weights(validators, weights)
+            self.instances[validator].initialize_validator_weights(validators, weights)
+
+    def add_validators(self, node):
+        validator = node.id[0]
+        self.seen_validators.add(validator)
+        for instance in self.instances.values():
+            if validator not in instance.validators:
+                instance.validators.add(validator)
+                instance.validator_weights[validator] = node.weight
 
     def process_graph_by_timesteps(self):
         max_timestamp = max(node.timestamp for node in self.nodes)
@@ -62,6 +71,9 @@ class LachesisMultiInstance:
             for node in nodes_to_process:
                 validator = node.id[0]
                 seq = node.predecessors
+
+                if node.id[0] not in self.seen_validators:
+                    self.add_validators(node)
 
                 event = Event(
                     id=(validator, seq),
@@ -102,7 +114,10 @@ class LachesisMultiInstance:
         nodes = convert_input_to_DAG(input_file)
         self.nodes = nodes
 
-        sorted_nodes = sorted(nodes, key=lambda node: node.timestamp)
+        sorted_nodes = sorted(
+            (node for node in nodes if node.timestamp <= 10),
+            key=lambda node: node.timestamp,
+        )
         validators = [node.id[0] for node in sorted_nodes]
         weights = [node.weight for node in sorted_nodes]
 
@@ -187,7 +202,7 @@ class Lachesis:
         self.initial_validator_weights = {}
         self.validator_weights = {}
 
-    def set_validator_weights(self, validators, weights):
+    def initialize_validator_weights(self, validators, weights):
         self.validators = validators
         self.validator_weights = dict(zip(validators, weights))
         self.initial_validator_weights = self.validator_weights.copy()
@@ -544,13 +559,16 @@ class Lachesis:
                             self.block += 1
 
     def process_graph_by_timesteps(self, nodes):
-        sorted_nodes = sorted(nodes, key=lambda node: node.timestamp)
+        sorted_nodes = sorted(
+            (node for node in nodes if node.timestamp <= 10),
+            key=lambda node: node.timestamp,
+        )
         max_timestamp = max(node.timestamp for node in nodes)
 
         validators = [node.id[0] for node in sorted_nodes]
         weights = [node.weight for node in sorted_nodes]
 
-        self.set_validator_weights(validators, weights)
+        self.initialize_validator_weights(validators, weights)
 
         for current_time in range(max_timestamp + 1):
             nodes_to_process = [
