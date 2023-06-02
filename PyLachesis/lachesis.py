@@ -43,6 +43,7 @@ class LachesisMultiInstance:
         self.instances = {}
         self.nodes = []
         self.seen_validators = set()
+        self.base_validator = Lachesis()
 
     def initialize_instances(self, validators, weights):
         for validator in validators:
@@ -115,7 +116,7 @@ class LachesisMultiInstance:
         self.nodes = nodes
 
         sorted_nodes = sorted(
-            (node for node in nodes if node.timestamp <= 10),
+            (node for node in nodes if node.timestamp <= 20),
             key=lambda node: node.timestamp,
         )
         validators = [node.id[0] for node in sorted_nodes]
@@ -124,14 +125,80 @@ class LachesisMultiInstance:
         self.initialize_instances(validators, weights)
         self.process_graph_by_timesteps()
 
+        self.base_validator.process_graph_by_timesteps(self.nodes)
+        self.base_validator.lachesis_state = self.base_validator.return_lachesis_state()
+        reference_state = self.base_validator.lachesis_state
+
         for instance in self.instances.values():
+            # graphing
             if create_graph:
                 output_file_validator = instance.validator + "_" + output_file
                 instance.graph_results(output_file_validator)
+
+            # verifying deterministic computation in different validators
             self.lachesis_state = instance.return_lachesis_state()
-            print("instance:", instance.validator)
-            print("lachesis_state:", self.lachesis_state)
-            print()
+            instance_state = self.lachesis_state
+
+            try:
+                assert instance_state["frame"] <= reference_state["frame"]
+                assert instance_state["block"] <= reference_state["block"]
+                assert all(
+                    [
+                        f in reference_state["root_set_validators"]
+                        for f in instance_state["root_set_validators"]
+                    ]
+                )
+                assert all(
+                    [
+                        instance_state["root_set_validators"][f]
+                        <= reference_state["root_set_validators"][f]
+                        for f in instance_state["root_set_validators"]
+                    ]
+                )
+                assert all(
+                    [
+                        f in reference_state["root_set_nodes"]
+                        for f in instance_state["root_set_nodes"]
+                    ]
+                )
+                assert all(
+                    [
+                        instance_state["root_set_nodes"][f]
+                        <= reference_state["root_set_nodes"][f]
+                        for f in instance_state["root_set_nodes"]
+                    ]
+                )
+                assert (
+                    instance_state["frame_to_decide"]
+                    <= reference_state["frame_to_decide"]
+                )
+                assert instance_state["cheater_list"] <= reference_state["cheater_list"]
+                assert instance_state["time"] <= reference_state["time"]
+                assert all(
+                    [
+                        f in reference_state["atropos_roots"]
+                        for f in instance_state["atropos_roots"]
+                    ]
+                )
+
+                print(reference_state["atropos_roots"])
+                print(instance_state["atropos_roots"])
+                # assert all(
+                #     [
+                #         instance_state["atropos_roots"][f]
+                #         == reference_state["atropos_roots"][f]
+                #         for f in instance_state["atropos_roots"]
+                #     ]
+                # )
+
+            except Exception as e:
+                print("instance:", instance.validator)
+                print("lachesis_state:\n", instance_state)
+                print()
+                print("reference state of base validator:\n", reference_state)
+                raise RuntimeError(
+                    "Assertion of deterministic computation failed:", str(e)
+                )
 
 
 class Node:
@@ -729,30 +796,30 @@ class Lachesis:
         if create_graph:
             self.graph_results(output_file)
         self.lachesis_state = self.return_lachesis_state()
-        print("base validator")
-        print("lachesis_state:", self.lachesis_state)
-        print()
+        # print("base validator")
+        # print("lachesis_state:", self.lachesis_state)
+        # print()
 
     def return_lachesis_state(self):
         return {
-            "self.frame": self.frame,
-            "self.block": self.block,
-            "self.root_set_validators": self.root_set_validators,
-            "self.root_set_nodes": self.root_set_nodes,
-            "self.frame_to_decide": self.frame_to_decide,
-            "self.cheater_list": self.cheater_list,
-            "self.time": self.time,
-            "self.atropos_roots": self.atropos_roots,
+            "frame": self.frame,
+            "block": self.block,
+            "root_set_validators": self.root_set_validators,
+            "root_set_nodes": self.root_set_nodes,
+            "frame_to_decide": self.frame_to_decide,
+            "cheater_list": self.cheater_list,
+            "time": self.time,
+            "atropos_roots": self.atropos_roots,
         }
 
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
     lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_81.txt", "result.pdf", True
+        "../inputs/graphs_with_cheaters/graph_87.txt", "result.pdf", True
     )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_81.txt", "result_multiinstance.pdf", False
+        "../inputs/graphs_with_cheaters/graph_87.txt", "result_multiinstance.pdf", True
     )
