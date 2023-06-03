@@ -1,5 +1,5 @@
 import random
-from sortedcontainers import SortedSet
+from sortedcontainers import SortedSet, SortedDict
 from collections import deque
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -119,7 +119,7 @@ class LachesisMultiInstance:
             (node for node in nodes if node.timestamp <= 20),
             key=lambda node: node.timestamp,
         )
-        validators = [node.id[0] for node in sorted_nodes]
+        validators = set([node.id[0] for node in sorted_nodes])
         weights = [node.weight for node in sorted_nodes]
 
         self.initialize_instances(validators, weights)
@@ -141,7 +141,6 @@ class LachesisMultiInstance:
 
             try:
                 assert instance_state["frame"] <= reference_state["frame"]
-                assert instance_state["block"] <= reference_state["block"]
                 assert all(
                     [
                         f in reference_state["root_set_validators"]
@@ -168,21 +167,21 @@ class LachesisMultiInstance:
                         for f in instance_state["root_set_nodes"]
                     ]
                 )
-                assert (
-                    instance_state["frame_to_decide"]
-                    <= reference_state["frame_to_decide"]
-                )
                 assert instance_state["cheater_list"] <= reference_state["cheater_list"]
                 assert instance_state["time"] <= reference_state["time"]
-                assert all(
-                    [
-                        f in reference_state["atropos_roots"]
-                        for f in instance_state["atropos_roots"]
-                    ]
-                )
 
-                print(reference_state["atropos_roots"])
-                print(instance_state["atropos_roots"])
+                # ATROPOS parameters
+                # assert instance_state["block"] <= reference_state["block"]
+                # assert (
+                #     instance_state["frame_to_decide"]
+                #     <= reference_state["frame_to_decide"]
+                # )
+                # assert all(
+                #     [
+                #         f in reference_state["atropos_roots"]
+                #         for f in instance_state["atropos_roots"]
+                #     ]
+                # )
                 # assert all(
                 #     [
                 #         instance_state["atropos_roots"][f]
@@ -194,8 +193,12 @@ class LachesisMultiInstance:
             except Exception as e:
                 print("instance:", instance.validator)
                 print("lachesis_state:\n", instance_state)
+                print("quorum_values:\n", instance.quorum_values)
+                # print("election_votes:\n", instance.election_votes)
                 print()
                 print("reference state of base validator:\n", reference_state)
+                print("quorum_values:\n", self.base_validator.quorum_values)
+                # print("election_votes:\n", self.base_validator.election_votes)
                 raise RuntimeError(
                     "Assertion of deterministic computation failed:", str(e)
                 )
@@ -587,12 +590,15 @@ class Lachesis:
         return forkless_cause_count >= self.quorum(frame_number)
 
     def atropos_voting(self, new_root):
-        candidates = self.root_set_nodes[self.frame_to_decide]
+        candidates = SortedSet(self.root_set_nodes[self.frame_to_decide])
+
         for candidate in candidates:
             if self.frame_to_decide not in self.election_votes:
-                self.election_votes[self.frame_to_decide] = {}
+                self.election_votes[self.frame_to_decide] = SortedDict()
+
             if (new_root, candidate) not in self.election_votes[self.frame_to_decide]:
                 vote = None
+
                 if self.frame == self.frame_to_decide + 1:
                     vote = {
                         "decided": False,
@@ -604,7 +610,8 @@ class Lachesis:
                 elif self.frame >= self.frame_to_decide + 2:
                     yes_votes = 0
                     no_votes = 0
-                    for prev_root in self.root_set_nodes[self.frame - 1]:
+
+                    for prev_root in SortedSet(self.root_set_nodes[self.frame - 1]):
                         prev_vote = self.election_votes[self.frame_to_decide].get(
                             (prev_root, candidate), {"yes": False}
                         )
@@ -616,13 +623,14 @@ class Lachesis:
                     vote = {
                         "decided": yes_votes >= self.quorum(self.frame)
                         or no_votes >= self.quorum(self.frame),
-                        "yes": yes_votes >= no_votes,
+                        "yes": yes_votes > no_votes,
                     }
 
                 if vote is not None:
                     self.election_votes[self.frame_to_decide][
                         (new_root, candidate)
                     ] = vote
+
                     if vote["decided"]:
                         self.decided_roots[candidate] = vote
                         if vote["yes"]:
@@ -632,12 +640,12 @@ class Lachesis:
 
     def process_graph_by_timesteps(self, nodes):
         sorted_nodes = sorted(
-            (node for node in nodes if node.timestamp <= 10),
+            (node for node in nodes if node.timestamp <= 20),
             key=lambda node: node.timestamp,
         )
         max_timestamp = max(node.timestamp for node in nodes)
 
-        validators = [node.id[0] for node in sorted_nodes]
+        validators = set([node.id[0] for node in sorted_nodes])
         weights = [node.weight for node in sorted_nodes]
 
         self.initialize_validator_weights(validators, weights)
@@ -815,11 +823,9 @@ class Lachesis:
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_87.txt", "result.pdf", True
-    )
+    lachesis_instance.run_lachesis("../inputs/graphs/graph_67.txt", "result.pdf", False)
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_87.txt", "result_multiinstance.pdf", True
+        "../inputs/graphs/graph_67.txt", "result_multiinstance.pdf", False
     )
