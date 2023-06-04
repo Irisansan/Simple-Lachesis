@@ -171,24 +171,24 @@ class LachesisMultiInstance:
                 assert instance_state["time"] <= reference_state["time"]
 
                 # ATROPOS parameters
-                # assert instance_state["block"] <= reference_state["block"]
-                # assert (
-                #     instance_state["frame_to_decide"]
-                #     <= reference_state["frame_to_decide"]
-                # )
-                # assert all(
-                #     [
-                #         f in reference_state["atropos_roots"]
-                #         for f in instance_state["atropos_roots"]
-                #     ]
-                # )
-                # assert all(
-                #     [
-                #         instance_state["atropos_roots"][f]
-                #         == reference_state["atropos_roots"][f]
-                #         for f in instance_state["atropos_roots"]
-                #     ]
-                # )
+                assert instance_state["block"] <= reference_state["block"]
+                assert (
+                    instance_state["frame_to_decide"]
+                    <= reference_state["frame_to_decide"]
+                )
+                assert all(
+                    [
+                        f in reference_state["atropos_roots"]
+                        for f in instance_state["atropos_roots"]
+                    ]
+                )
+                assert all(
+                    [
+                        instance_state["atropos_roots"][f]
+                        == reference_state["atropos_roots"][f]
+                        for f in instance_state["atropos_roots"]
+                    ]
+                )
 
             except Exception as e:
                 print("instance:", instance.validator)
@@ -444,6 +444,7 @@ class Lachesis:
         if fork_detected:
             if event.creator not in self.forks:
                 self.forks[event.creator] = event.seq
+                self.cheater_list.add(event.creator)
             self.validator_weights[event.creator] = 0
 
         if self.frame not in self.quorum_values:
@@ -473,7 +474,7 @@ class Lachesis:
                 if self.frame not in self.quorum_values:
                     self.quorum(self.frame)
 
-                self.atropos_voting(event.id)
+                # self.atropos_voting(event.id)
 
             else:
                 direct_child = self.events[(event.creator, event.seq - 1)]
@@ -482,14 +483,9 @@ class Lachesis:
     def detect_forks(self, event):
         fork_detected = False
 
-        parent_ids = event.parents
-
         if event.simultaneous_duplicate:
-            self.cheater_list.add(event.creator)
-            self.validator_weights[event.creator] = 0
-            fork_detected = True
-
-        if event.id in parent_ids:
+            if self.validator == "A":
+                print("simultaneous duplicate", event.id)
             self.cheater_list.add(event.creator)
             self.validator_weights[event.creator] = 0
             fork_detected = True
@@ -502,9 +498,14 @@ class Lachesis:
         elif self.last_validator_sequence[validator] < seq:
             self.last_validator_sequence[validator] = seq
         else:
+            if self.validator == "A":
+                print("same sequence", event.id)
             self.cheater_list.add(validator)
             self.validator_weights[validator] = 0
             fork_detected = True
+
+        if self.validator == "A" and fork_detected:
+            print(self.validator_weights)
 
         return fork_detected
 
@@ -823,9 +824,11 @@ class Lachesis:
 
 if __name__ == "__main__":
     lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis("../inputs/graphs/graph_67.txt", "result.pdf", False)
+    lachesis_instance.run_lachesis(
+        "../inputs/graphs_with_cheaters/graph_43.txt", "result.pdf", True
+    )
 
     lachesis_multiinstance = LachesisMultiInstance()
     lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs/graph_67.txt", "result_multiinstance.pdf", False
+        "../inputs/graphs_with_cheaters/graph_43.txt", "result_multiinstance.pdf", True
     )
