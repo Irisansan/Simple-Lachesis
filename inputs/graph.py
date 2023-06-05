@@ -1,3 +1,4 @@
+import uuid
 import networkx as nx
 import matplotlib.pyplot as plt
 import random
@@ -279,10 +280,17 @@ def createGraph(
     # print(cheater_nodes)
 
     # Save graph as text data in format one
+    node_uuids = {}
+
     with open(txt_filename_format_one, "w") as f:
         for node in G:
+            if node not in node_uuids:
+                node_uuids[node] = uuid.uuid4()
+            node_uuid = node_uuids[node]
             f.write(
-                "node: ("
+                "unique_id: "
+                + str(node_uuid)
+                + " label: ("
                 + str(labels[node][0])
                 + ","
                 + str(labels[node][1])
@@ -292,8 +300,13 @@ def createGraph(
             )
             f.write(";")
             for child in G[node]:
+                if child not in node_uuids:
+                    node_uuids[child] = uuid.uuid4()
+                child_uuid = node_uuids[child]
                 f.write(
-                    " child: ("
+                    " child_unique_id: "
+                    + str(child_uuid)
+                    + " child_label: ("
                     + str(labels[child][0])
                     + ","
                     + str(labels[child][1])
@@ -303,28 +316,28 @@ def createGraph(
                 )
             f.write("\n")
 
-    # Save graph as text data in format two
-    with open(txt_filename_format_two, "w") as f:
-        for node in G:
-            validator = "Event" + labels[node][0]
-            epoch = "1"  # affixed to 1 for now
-            seq = str(labels[node][2])
-            event = validator + seq
-            creator = (
-                chr(cheater_nodes[node][1] + 65)
-                if node in cheater_nodes.keys()
-                else chr(node[1] + 65)
-            )
-            node_information = ";".join([event, epoch, seq, creator])
-            children_information = ",".join(
-                [
-                    "Event" + labels[child][0] + str(labels[child][2])
-                    for child in G[node]
-                ]
-            )
+    # # Save graph as text data in format two
+    # with open(txt_filename_format_two, "w") as f:
+    #     for node in G:
+    #         validator = "Event" + labels[node][0]
+    #         epoch = "1"  # affixed to 1 for now
+    #         seq = str(labels[node][2])
+    #         event = validator + seq
+    #         creator = (
+    #             chr(cheater_nodes[node][1] + 65)
+    #             if node in cheater_nodes.keys()
+    #             else chr(node[1] + 65)
+    #         )
+    #         node_information = ";".join([event, epoch, seq, creator])
+    #         children_information = ",".join(
+    #             [
+    #                 "Event" + labels[child][0] + str(labels[child][2])
+    #                 for child in G[node]
+    #             ]
+    #         )
 
-            f.write(node_information + ";" + children_information)
-            f.write("\n")
+    #         f.write(node_information + ";" + children_information)
+    #         f.write("\n")
 
     # Save plot as a PDF
     if save_plot:
