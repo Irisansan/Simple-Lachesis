@@ -1,0 +1,21 @@
+A: H, J, K, M, Q
+H: A, E, G, L, O
+J: A, B, T, N
+K: A, D
+M: A, R, L, T
+Q: A, N, F
+B: J, D, U, G
+D: B, K, L, U
+G: B, F, H, R, S
+U: L, B, D, T
+C: P
+P: I, R, C, T
+L: D, H, M, N, U
+E: F, H
+F: E, G, O, Q, T
+O: F, H
+T: F, J, M, P, R, U
+R: T, M, G, P
+S: G
+N: Q, J, L
+I: P

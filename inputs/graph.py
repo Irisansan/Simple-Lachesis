@@ -3,8 +3,17 @@ import networkx as nx
 import matplotlib.pyplot as plt
 import random
 import matplotlib
+import math
 
 matplotlib.use("Agg")
+
+
+def logistic(L, k, x0, x):
+    return L / (1 + math.exp(-k * (x - x0)))
+
+
+def random_weight(x):
+    return int(logistic(40, 0.2, 25, x) * random.random()) + 1
 
 
 def createGraph(
@@ -24,6 +33,8 @@ def createGraph(
 ):
     # Initialize the graph
     G = nx.DiGraph()
+
+    weights = [random_weight(num_nodes) for j in range(num_nodes)]
 
     # Create the neighbors dictionary
     neighbors = {}
@@ -168,7 +179,7 @@ def createGraph(
                             G.add_edge(node, target)
 
     labels = {
-        (i, j): (chr(j + 65), i + 1, parent_count[(i, j)] + 1)
+        (i, j): (chr(j + 65), i + 1, parent_count[(i, j)] + 1, weights[j])
         for i in range(num_levels)
         for j in range(num_nodes)
         if (i, j) in G.nodes
@@ -195,18 +206,15 @@ def createGraph(
                     deepest_cheater = (_i, deepest_cheater[1])
 
         for i in range(num_levels):
-            # color_map[node] = cheater_nodes[node]
             if (i, j) in G.nodes:
                 labels[(i, j)] = (
                     chr(deepest_cheater[1] + 65),
                     i + 1,
                     cheating_parents + 1,
+                    weights[deepest_cheater[1]],  # inherit weight from deepest cheater
                 )
                 cheating_parents += 1
                 color_map[(i, j)] = color_map[(deepest_cheater)]
-
-    # [r'$\mathrm{{{}}}_{{{},{}}}$'.format(
-    # labels[val][0], labels[val][1], labels[val][2]) for val in labels.keys()]
 
     # Plot the figure
 
@@ -224,15 +232,15 @@ def createGraph(
         pos,
         with_labels=True,
         labels={
-            val: r"$\mathrm{{{}}}_{{{},{}}}$".format(
-                labels[val][0], labels[val][1], labels[val][2]
+            val: r"$\mathrm{{{}}}_{{{},{},{}}}$".format(
+                labels[val][0], labels[val][1], labels[val][2], labels[val][3]
             )
             for val in labels
         },
         font_family="serif",
         font_size=9,
         node_color=[color_map.get(node, color_map[node]) for node in G.nodes()],
-        node_size=900,
+        node_size=1300,
         font_weight="bold",
     )
 
@@ -296,6 +304,8 @@ def createGraph(
                 + str(labels[node][1])
                 + ","
                 + str(labels[node][2])
+                + ","
+                + str(labels[node][3])  # print weight
                 + ")"
             )
             f.write(";")
@@ -364,7 +374,9 @@ def generate_graphs(
     annotate = True if annotate_graph.lower() == "y" else False
     num_graphs = int(num_graphs) if num_graphs else 50
     cheater_input = (
-        float(cheater_input) if (cheater_input is None or cheater_input == 0) else 0.2
+        float(cheater_input)
+        if (cheater_input is not None and cheater_input.strip() != "")
+        else 0.2
     )
     level_input = (
         int(level_input)
@@ -412,7 +424,7 @@ def generate_graphs(
             else neighbor_prob_input
         )
 
-        graph_index = str(starting_index + i)
+        graph_index = str(int(starting_index) + (i))
 
         graph_filename = f"{base_dir}/graph_{graph_index}.pdf"
         txt_filename_format_one = f"{base_dir}/graph_{graph_index}.txt"

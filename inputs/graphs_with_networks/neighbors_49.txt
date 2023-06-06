@@ -1,5 +1,0 @@
-A: C
-C: A
-B: E
-E: B, D
-D: E
