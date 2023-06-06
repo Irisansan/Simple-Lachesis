@@ -48,7 +48,7 @@ class Event:
         self.parents.append(parent_uuid)
 
     def __repr__(self):
-        return f"Event({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents})"
+        return f"Event({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed})"
 
 
 class Lachesis:
@@ -61,7 +61,7 @@ class Lachesis:
         self.frame = None
         self.epoch = None
         self.root_set_validators = []
-        self.root_set_nodes = {}
+        self.root_set_events = {}
         self.frame_to_decide = None
         self.validator_cheater_list = {}
         self.decided_roots = []
@@ -69,12 +69,30 @@ class Lachesis:
         self.quorum = None
         self.uuid_event_dict = {}
 
+    def set_highest_events_observed(self, event):
+        for parent_id in event.parents:
+            parent = self.uuid_event_dict[parent_id]
+
+            if (
+                parent.validator not in event.highest_observed
+                or parent.sequence > event.highest_observed[parent.validator]
+            ):
+                event.highest_observed[parent.validator] = parent.sequence
+
+            for validator, sequence in parent.highest_observed.items():
+                if (
+                    validator not in event.highest_observed
+                    or sequence > event.highest_observed[validator]
+                ):
+                    event.highest_observed[validator] = sequence
+
     def process_events(self, events):
         # Sort events by timestamp
         sorted_events = sorted(events, key=lambda e: e.timestamp)
 
         # Add events to Lachesis
         for event in sorted_events:
+            self.set_highest_events_observed(event)
             self.events.append(event)
             self.uuid_event_dict[event.uuid] = event
 
