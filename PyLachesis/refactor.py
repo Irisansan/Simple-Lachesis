@@ -1,9 +1,10 @@
 import re
-import uuid
 
 
 def parse_data(file_path):
-    event_dict = {}
+    uuid_event_dict = {}
+    event_list = []
+
     with open(file_path, "r") as file:
         for line in file:
             # Parse line
@@ -19,15 +20,16 @@ def parse_data(file_path):
             event = Event(
                 validator, int(timestamp), int(sequence), int(weight), unique_id
             )
-            event_dict[unique_id] = event
+            uuid_event_dict[unique_id] = event
+            event_list.append(event)
 
             # Add parents if they exist
             child_unique_ids = re.findall(r"child_unique_id:\s([a-z0-9-]*)", line)
             for child_unique_id in child_unique_ids:
-                if child_unique_id in event_dict:
+                if child_unique_id in uuid_event_dict:
                     event.add_parent(child_unique_id)
 
-    return event_dict
+    return uuid_event_dict, event_list
 
 
 class Event:
@@ -49,6 +51,37 @@ class Event:
         return f"Event({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents})"
 
 
+class Lachesis:
+    def __init__(self):
+        self.validator = None
+        self.validators = []
+        self.validator_weights = {}
+        self.time = 1
+        self.events = []
+        self.frame = None
+        self.epoch = None
+        self.root_set_validators = []
+        self.root_set_nodes = {}
+        self.frame_to_decide = None
+        self.validator_cheater_list = {}
+        self.decided_roots = []
+        self.atropos_roots = []
+        self.quorum = None
+        self.uuid_event_dict = {}
+
+    def process_events(self, events):
+        # Sort events by timestamp
+        sorted_events = sorted(events, key=lambda e: e.timestamp)
+
+        # Add events to Lachesis
+        for event in sorted_events:
+            self.events.append(event)
+            self.uuid_event_dict[event.uuid] = event
+
+
 if __name__ == "__main__":
-    event_dict = parse_data("../inputs/graphs/graph_1.txt")
-    print(event_dict)
+    uuid_event_dict, event_list = parse_data("../inputs/graphs/graph_1.txt")
+    lachesis = Lachesis()
+    lachesis.process_events(event_list)
+    print(lachesis.uuid_event_dict)
+    print(lachesis.events)
