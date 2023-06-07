@@ -1,3 +1,4 @@
+from collections import deque
 import re
 
 
@@ -48,7 +49,7 @@ class Event:
         self.parents.append(parent_uuid)
 
     def __repr__(self):
-        return f"Event({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed})"
+        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed}, {self.lowest_observing})"
 
 
 class Lachesis:
@@ -86,6 +87,22 @@ class Lachesis:
                 ):
                     event.highest_observed[validator] = sequence
 
+    def set_lowest_observing_events(self, event):
+        parents = deque(event.parents)
+
+        while parents:
+            parent_id = parents.popleft()
+            parent = self.uuid_event_dict[parent_id]
+
+            # If the validator of the event is not in the parent vector, add it
+            if event.validator not in parent.lowest_observing:
+                parent.lowest_observing[event.validator] = {
+                    "uuid": event.uuid,
+                    "sequence": event.sequence,
+                }
+
+            parents.extend(parent.parents)
+
     def process_events(self, events):
         # Sort events by timestamp
         sorted_events = sorted(events, key=lambda e: e.timestamp)
@@ -93,13 +110,15 @@ class Lachesis:
         # Add events to Lachesis
         for event in sorted_events:
             self.set_highest_events_observed(event)
+            self.set_lowest_observing_events(event)
             self.events.append(event)
             self.uuid_event_dict[event.uuid] = event
 
 
 if __name__ == "__main__":
-    uuid_event_dict, event_list = parse_data("../inputs/graphs/graph_1.txt")
+    uuid_event_dict, event_list = parse_data("../inputs/cheaters/graph_7.txt")
     lachesis = Lachesis()
     lachesis.process_events(event_list)
     print(lachesis.uuid_event_dict)
     print(lachesis.events)
+    print(lachesis.validator_cheater_list)
