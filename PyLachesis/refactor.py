@@ -64,6 +64,7 @@ class Lachesis:
         self.root_set_validators = []
         self.root_set_events = {}
         self.frame_to_decide = None
+        self.observed_sequences = {}
         self.validator_cheater_list = {}
         self.decided_roots = []
         self.atropos_roots = []
@@ -101,7 +102,26 @@ class Lachesis:
                     "sequence": event.sequence,
                 }
 
-            parents.extend(parent.parents)
+                # Add sequence numbers observed by the event's validator
+                if event.validator not in self.observed_sequences:
+                    self.observed_sequences[event.validator] = {}
+                if parent.validator not in self.observed_sequences[event.validator]:
+                    self.observed_sequences[event.validator][parent.validator] = set()
+
+                if (
+                    parent.sequence
+                    in self.observed_sequences[event.validator][parent.validator]
+                ):
+                    # The event's validator has observed a fork by the parent validator
+                    if event.validator not in self.validator_cheater_list:
+                        self.validator_cheater_list[event.validator] = set()
+                    self.validator_cheater_list[event.validator].add(parent.validator)
+                else:
+                    self.observed_sequences[event.validator][parent.validator].add(
+                        parent.sequence
+                    )
+
+                parents.extend(parent.parents)
 
     def process_events(self, events):
         # Sort events by timestamp
@@ -116,9 +136,9 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    uuid_event_dict, event_list = parse_data("../inputs/cheaters/graph_7.txt")
+    uuid_event_dict, event_list = parse_data("../inputs/cheaters/graph_88.txt")
     lachesis = Lachesis()
     lachesis.process_events(event_list)
-    print(lachesis.uuid_event_dict)
-    print(lachesis.events)
+    # print(lachesis.uuid_event_dict)
+    # print(lachesis.events)
     print(lachesis.validator_cheater_list)
