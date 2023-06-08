@@ -1,3 +1,6 @@
+import networkx as nx
+import matplotlib.colors as mcolors
+import matplotlib.pyplot as plt
 from collections import deque
 import re
 
@@ -243,6 +246,79 @@ class Lachesis:
 
                 parents.extend(parent.parents)
 
+    def graph_results(self, output_filename):
+        colors = ["orange", "yellow", "blue", "cyan", "purple"]
+
+        colors_rgb = [mcolors.to_rgb(color) for color in colors]
+
+        darker_colors = []
+        for color in colors_rgb:
+            darker_color = tuple(c * 0.8 for c in color)
+            darker_colors.append(darker_color)
+
+        timestamp_dag = nx.DiGraph()
+
+        # Add nodes and edges to graph
+        for event in self.events:
+            validator = event.validator
+            timestamp = event.timestamp
+            sequence = event.sequence
+            frame = event.frame
+            weight = self.validator_weights[validator]
+            timestamp_dag.add_node(
+                (validator, timestamp), seq=sequence, frame=frame, weight=weight
+            )
+            for parent_uuid in event.parents:
+                parent = self.uuid_event_dict[parent_uuid]
+                parent_timestamp = parent.timestamp
+                timestamp_dag.add_edge(
+                    (validator, timestamp),
+                    (parent.validator, parent_timestamp),
+                )
+
+        pos = {}
+        num_nodes = len(self.validator_weights)
+        num_levels = max([event.timestamp for event in self.events])
+
+        figsize = [20, 10]
+        if num_levels >= 15:
+            figsize[0] = figsize[0] * num_levels / 20
+        if num_nodes >= 10:
+            figsize[0] = figsize[0] * num_nodes / 4
+            figsize[1] = figsize[1] * num_nodes / 10
+
+        fig = plt.figure(figsize=(figsize[0], figsize[1]))
+        for i in range(num_nodes + 25):
+            for j in range(num_levels + 25):
+                node = (chr(i + 65), j)
+                pos[node] = (j, i)
+
+        labels = {
+            node: (node[0], node[1], timestamp_dag.nodes[node]["seq"])
+            for node in timestamp_dag.nodes
+        }
+
+        nx.draw(
+            timestamp_dag,
+            pos,
+            with_labels=True,
+            labels={
+                val: r"$\mathrm{{{}}}_{{{},{}}}$".format(
+                    labels[val][0], labels[val][1], labels[val][2]
+                )
+                for val in labels
+            },
+            font_family="serif",
+            font_size=9,
+            node_size=1300,
+            node_color=["blue" for node in timestamp_dag.nodes()],
+            font_weight="bold",
+        )
+
+        fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
+        # plt.show()
+        plt.close()
+
     def process_events(self, events):
         # Sort events by timestamp
         sorted_events = sorted(events, key=lambda e: e.timestamp)
@@ -258,7 +334,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    event_list = parse_data("../inputs/cheaters/graph_3.txt")
+    event_list = parse_data("../inputs/graphs/graph_3.txt")
     validators, validator_weights = filter_validators_and_weights(event_list)
     lachesis = Lachesis()
     lachesis.initialize_validators(validators, validator_weights)
@@ -267,3 +343,4 @@ if __name__ == "__main__":
     print(lachesis.validator_cheater_list)
     print(lachesis.frame)
     print(lachesis.root_set_events)
+    print(lachesis.graph_results("result.pdf"))
