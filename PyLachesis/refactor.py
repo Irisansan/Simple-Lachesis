@@ -30,6 +30,20 @@ def parse_data(file_path):
     return event_list
 
 
+def filter_validators_and_weights(events):
+    validators = []
+    validator_weights = {}
+
+    for event in events:
+        if event.timestamp > 10:
+            break
+        if event.validator not in validators:
+            validators.append(event.validator)
+            validator_weights[event.validator] = event.weight
+
+    return validators, validator_weights
+
+
 class Event:
     def __init__(self, validator, timestamp, sequence, weight, unique_id):
         self.validator = validator
@@ -57,8 +71,8 @@ class Lachesis:
         self.validator_weights = {}
         self.time = 1
         self.events = []
-        self.frame = None
-        self.epoch = None
+        self.frame = 1
+        self.epoch = 1
         self.root_set_validators = []
         self.root_set_events = {}
         self.frame_to_decide = None
@@ -68,6 +82,10 @@ class Lachesis:
         self.atropos_roots = []
         self.quorum = None
         self.uuid_event_dict = {}
+
+    def initialize_validators(self, validators, validator_weights):
+        self.validators = validators
+        self.validator_weights = validator_weights
 
     def detect_forks(self, event):
         if event.validator not in self.validator_cheater_list:
@@ -158,8 +176,8 @@ class Lachesis:
 
 if __name__ == "__main__":
     event_list = parse_data("../inputs/cheaters/graph_94.txt")
+    validators, validator_weights = filter_validators_and_weights(event_list)
     lachesis = Lachesis()
+    lachesis.initialize_validators(validators, validator_weights)
     lachesis.process_events(event_list)
-    # print(lachesis.uuid_event_dict)
-    # print(lachesis.events)
-    print(lachesis.validator_cheater_list)
+    print(lachesis.validator_weights)
