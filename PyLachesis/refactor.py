@@ -80,12 +80,94 @@ class Lachesis:
         self.validator_cheater_list = {}
         self.decided_roots = []
         self.atropos_roots = []
-        self.quorum = None
+        self.quorum_values = None
         self.uuid_event_dict = {}
 
     def initialize_validators(self, validators, validator_weights):
         self.validators = validators
         self.validator_weights = validator_weights
+
+    def quorum(self, frame):
+        return (
+            2
+            * sum(
+                [
+                    self.validator_weights[root.validator]
+                    for root in self.root_set_events[frame]
+                ]
+            )
+            // 3
+            + 1
+        )
+
+    def get_direct_child(self, event):
+        direct_child_uuid = next(
+            (
+                uuid
+                for uuid in event.parents
+                if self.uuid_event_dict[uuid].sequence == event.sequence - 1
+                and self.uuid_event_dict[uuid].validator == event.validator
+            ),
+            None,
+        )
+        if direct_child_uuid is not None:
+            return self.uuid_event_dict[direct_child_uuid]
+        else:
+            return None
+
+    def is_root(self, event):
+        if event.sequence == 1:
+            return True
+
+        direct_child = self.get_direct_child(event)
+        if direct_child is None:
+            return False
+
+        event.frame = direct_child.frame
+        frame_roots = self.root_set_events.get(event.frame, [])
+        if not frame_roots:
+            return False
+
+        forkless_cause_weights = sum(
+            [
+                self.validator_weights[root.validator]
+                for root in frame_roots
+                if self.forkless_cause(event, root)
+            ]
+        )
+
+        return forkless_cause_weights >= self.quorum(event.frame)
+
+    def set_roots(self, event):
+        if self.is_root(event):
+            if event.sequence == 1:
+                event.frame = 1
+            else:
+                event.frame += 1
+            if self.frame < event.frame:
+                self.frame = event.frame
+            if event.frame in self.root_set_events:
+                self.root_set_events[event.frame].append(event)
+            else:
+                self.root_set_events[event.frame] = [event]
+
+    def forkless_cause(self, event_a, event_b):
+        if event_a.validator in self.validator_cheater_list.get(
+            event_b.validator, set()
+        ) or event_b.validator in self.validator_cheater_list.get(
+            event_a.validator, set()
+        ):
+            return False
+
+        a = event_a.highest_observed
+        b = event_b.lowest_observing
+
+        yes = 0
+        for validator, sequence in a.items():
+            if validator in b and b[validator]["sequence"] <= sequence:
+                yes += self.validator_weights[validator]
+
+        return yes >= self.quorum(event_b.frame)
 
     def detect_forks(self, event):
         if event.validator not in self.validator_cheater_list:
@@ -170,14 +252,18 @@ class Lachesis:
             self.detect_forks(event)
             self.set_highest_events_observed(event)
             self.set_lowest_observing_events(event)
+            self.set_roots(event)
             self.events.append(event)
             self.uuid_event_dict[event.uuid] = event
 
 
 if __name__ == "__main__":
-    event_list = parse_data("../inputs/cheaters/graph_94.txt")
+    event_list = parse_data("../inputs/cheaters/graph_3.txt")
     validators, validator_weights = filter_validators_and_weights(event_list)
     lachesis = Lachesis()
     lachesis.initialize_validators(validators, validator_weights)
     lachesis.process_events(event_list)
     print(lachesis.validator_weights)
+    print(lachesis.validator_cheater_list)
+    print(lachesis.frame)
+    print(lachesis.root_set_events)
