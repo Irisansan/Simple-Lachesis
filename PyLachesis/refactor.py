@@ -61,6 +61,7 @@ class Event:
         self.lowest_observing = {}
         self.visited = {}
         self.parents = []
+        self.highest_timestamps_observed = {}
 
     def add_parent(self, parent_uuid):
         self.parents.append(parent_uuid)
@@ -89,6 +90,7 @@ class Lachesis:
         self.uuid_event_dict = {}
         self.suspected_cheaters = set()
         self.confirmed_cheaters = set()
+        self.highest_validator_timestamps = {}
 
     def initialize_validators(self, validators, validator_weights):
         self.validators = validators
@@ -99,6 +101,7 @@ class Lachesis:
             return self.quorum_cache[frame]
         else:
             weights_total = sum(self.validator_weights.values())
+
             for cheater in self.suspected_cheaters:
                 cheater_observation = 0
                 for validator, cheaters in self.validator_cheater_list.items():
@@ -108,6 +111,12 @@ class Lachesis:
                     self.confirmed_cheaters.add(cheater)
                     self.validator_weights[cheater] = 0
                     weights_total -= self.validator_weights[cheater]
+
+            for validator, timestamp in self.highest_validator_timestamps.items():
+                if self.time - timestamp >= 20:
+                    # If the validator's highest timestamp is too old, ignore its weight
+                    self.validator_weights[validator] = 0
+                    weights_total -= self.validator_weights[validator]
 
             self.quorum_cache[frame] = 2 * weights_total // 3 + 1
             return self.quorum_cache[frame]
@@ -220,6 +229,32 @@ class Lachesis:
                     )
                     parents.extend(parent.parents)
 
+    def set_highest_timestamps_observed(self, event):
+        for parent_id in event.parents:
+            parent = self.uuid_event_dict[parent_id]
+
+            if (
+                parent.validator not in event.highest_timestamps_observed
+                or parent.timestamp
+                > event.highest_timestamps_observed[parent.validator]
+            ):
+                event.highest_timestamps_observed[parent.validator] = parent.timestamp
+
+            for validator, timestamp in parent.highest_timestamps_observed.items():
+                if (
+                    validator not in event.highest_timestamps_observed
+                    or timestamp > event.highest_timestamps_observed[validator]
+                ):
+                    event.highest_timestamps_observed[validator] = timestamp
+
+            # Update the Lachesis attribute
+            for validator, timestamp in event.highest_timestamps_observed.items():
+                if (
+                    validator not in self.highest_validator_timestamps
+                    or timestamp > self.highest_validator_timestamps[validator]
+                ):
+                    self.highest_validator_timestamps[validator] = timestamp
+
     def set_highest_events_observed(self, event):
         for parent_id in event.parents:
             parent = self.uuid_event_dict[parent_id]
@@ -280,12 +315,19 @@ class Lachesis:
                 if event.validator not in self.validators:
                     self.validators.append(event.validator)
                     self.validator_weights[event.validator] = event.weight
+                elif event.validator not in self.confirmed_cheaters:
+                    # If the validator reappears, reinstate its weight
+                    self.validator_weights[event.validator] = event.weight
+
                 self.detect_forks(event)
+                self.set_highest_timestamps_observed(event)
                 self.set_highest_events_observed(event)
                 self.set_lowest_observing_events(event)
                 self.set_roots(event)
                 self.events.append(event)
                 self.uuid_event_dict[event.uuid] = event
+
+            self.time = timestamp
 
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "blue", "cyan", "purple"]
@@ -398,3 +440,4 @@ if __name__ == "__main__":
     print(lachesis.validator_cheater_list)
     print(lachesis.suspected_cheaters)
     print(lachesis.confirmed_cheaters)
+    print(lachesis.highest_validator_timestamps)
