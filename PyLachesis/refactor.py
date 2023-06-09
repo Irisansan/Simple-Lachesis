@@ -1,3 +1,4 @@
+import random
 import networkx as nx
 import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
@@ -86,6 +87,8 @@ class Lachesis:
         self.atropos_roots = []
         self.quorum_cache = {}
         self.uuid_event_dict = {}
+        self.suspected_cheaters = set()
+        self.confirmed_cheaters = set()
 
     def initialize_validators(self, validators, validator_weights):
         self.validators = validators
@@ -95,7 +98,18 @@ class Lachesis:
         if frame in self.quorum_cache:
             return self.quorum_cache[frame]
         else:
-            self.quorum_cache[frame] = 2 * sum(self.validator_weights.values()) // 3 + 1
+            weights_total = sum(self.validator_weights.values())
+            for cheater in self.suspected_cheaters:
+                cheater_observation = 0
+                for validator, cheaters in self.validator_cheater_list.items():
+                    if cheater in cheaters:
+                        cheater_observation += self.validator_weights[validator]
+                if cheater_observation >= 2 * weights_total // 3 + 1:
+                    self.confirmed_cheaters.add(cheater)
+                    self.validator_weights[cheater] = 0
+                    weights_total -= self.validator_weights[cheater]
+
+            self.quorum_cache[frame] = 2 * weights_total // 3 + 1
             return self.quorum_cache[frame]
 
     def get_direct_child(self, event):
@@ -199,6 +213,7 @@ class Lachesis:
                 ):
                     # The event's validator has observed a fork by the parent validator
                     self.validator_cheater_list[event.validator].add(parent.validator)
+                    self.suspected_cheaters.add(parent.validator)
                 else:
                     self.observed_sequences[event.validator][parent.validator].add(
                         parent.sequence
@@ -245,20 +260,32 @@ class Lachesis:
                 parents.extend(parent.parents)
 
     def process_events(self, events):
-        # Sort events by timestamp
-        sorted_events = sorted(events, key=lambda e: e.timestamp)
+        # Group events by timestamp
+        timestamp_event_dict = {}
+        for event in events:
+            if event.timestamp not in timestamp_event_dict:
+                timestamp_event_dict[event.timestamp] = []
+            timestamp_event_dict[event.timestamp].append(event)
 
-        # Add events to Lachesis
-        for event in sorted_events:
-            if event.validator not in self.validators:
-                self.validators.append(event.validator)
-                self.validator_weights[event.validator] = event.weight
-            self.detect_forks(event)
-            self.set_highest_events_observed(event)
-            self.set_lowest_observing_events(event)
-            self.set_roots(event)
-            self.events.append(event)
-            self.uuid_event_dict[event.uuid] = event
+        # Get the maximum timestamp
+        max_timestamp = max(timestamp_event_dict.keys())
+
+        # Process events from timestamp 1 to max_timestamp
+        for timestamp in range(1, max_timestamp + 1):
+            # Retrieve, shuffle and process events with the current timestamp
+            current_timestamp_events = timestamp_event_dict.get(timestamp, [])
+            random.shuffle(current_timestamp_events)
+
+            for event in current_timestamp_events:
+                if event.validator not in self.validators:
+                    self.validators.append(event.validator)
+                    self.validator_weights[event.validator] = event.weight
+                self.detect_forks(event)
+                self.set_highest_events_observed(event)
+                self.set_lowest_observing_events(event)
+                self.set_roots(event)
+                self.events.append(event)
+                self.uuid_event_dict[event.uuid] = event
 
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "blue", "cyan", "purple"]
@@ -274,6 +301,8 @@ class Lachesis:
 
         # Add nodes and edges to graph
         for event in self.events:
+            if event.validator in self.confirmed_cheaters:
+                continue  # Skip nodes from confirmed cheaters
             validator = event.validator
             timestamp = event.timestamp
             sequence = event.sequence
@@ -289,6 +318,8 @@ class Lachesis:
             )
             for parent_uuid in event.parents:
                 parent = self.uuid_event_dict[parent_uuid]
+                if parent.validator in self.confirmed_cheaters:
+                    continue  # Skip edges that lead to confirmed cheaters
                 parent_timestamp = parent.timestamp
                 timestamp_dag.add_edge(
                     (validator, timestamp),
@@ -354,14 +385,16 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    event_list = parse_data("../inputs/graphs/graph_97.txt")
+    event_list = parse_data("../inputs/cheaters/graph_81.txt")
     validators, validator_weights = filter_validators_and_weights(event_list)
     lachesis = Lachesis()
     lachesis.initialize_validators(validators, validator_weights)
     lachesis.process_events(event_list)
     print(lachesis.validator_weights)
-    print(lachesis.validator_cheater_list)
     print(lachesis.events)
     print(lachesis.frame)
     print(lachesis.root_set_events)
     print(lachesis.graph_results("result.pdf"))
+    print(lachesis.validator_cheater_list)
+    print(lachesis.suspected_cheaters)
+    print(lachesis.confirmed_cheaters)
