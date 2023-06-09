@@ -140,7 +140,7 @@ class Lachesis:
         if self.is_root(event):
             event.root = True
             if event.sequence == 1:
-                event.frame = 1
+                event.frame = self.frame
             else:
                 event.frame += 1
             if self.frame < event.frame:
@@ -163,26 +163,10 @@ class Lachesis:
         a = event_a.highest_observed
         b = event_b.lowest_observing
 
-        # if event_a.validator == "D" and event_b.validator == "D":
-        #     print()
-        #     print("forkless cause")
-        #     print(event_a)
-        #     print(event_b)
-
         yes = 0
         for validator, sequence in a.items():
             if validator in b and b[validator]["sequence"] <= sequence:
                 yes += self.validator_weights[validator]
-
-        if (
-            yes >= self.quorum(event_b.frame)
-            and event_b.validator == "D"
-            and event_b.sequence == 1
-        ):
-            print("YES")
-            print(event_a)
-            print(event_b)
-            print("value of yes:", yes)
 
         return yes >= self.quorum(event_b.frame)
 
@@ -266,6 +250,9 @@ class Lachesis:
 
         # Add events to Lachesis
         for event in sorted_events:
+            if event.validator not in self.validators:
+                self.validators.append(event.validator)
+                self.validator_weights[event.validator] = event.weight
             self.detect_forks(event)
             self.set_highest_events_observed(event)
             self.set_lowest_observing_events(event)
@@ -367,7 +354,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    event_list = parse_data("../inputs/graphs/graph_1.txt")
+    event_list = parse_data("../inputs/graphs/graph_97.txt")
     validators, validator_weights = filter_validators_and_weights(event_list)
     lachesis = Lachesis()
     lachesis.initialize_validators(validators, validator_weights)
