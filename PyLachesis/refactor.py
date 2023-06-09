@@ -55,6 +55,7 @@ class Event:
         self.weight = weight
         self.uuid = unique_id
         self.frame = None
+        self.root = False
         self.highest_observed = {}
         self.lowest_observing = {}
         self.visited = {}
@@ -83,7 +84,7 @@ class Lachesis:
         self.validator_cheater_list = {}
         self.decided_roots = []
         self.atropos_roots = []
-        self.quorum_values = None
+        self.quorum_cache = {}
         self.uuid_event_dict = {}
 
     def initialize_validators(self, validators, validator_weights):
@@ -91,17 +92,11 @@ class Lachesis:
         self.validator_weights = validator_weights
 
     def quorum(self, frame):
-        return (
-            2
-            * sum(
-                [
-                    self.validator_weights[root.validator]
-                    for root in self.root_set_events[frame]
-                ]
-            )
-            // 3
-            + 1
-        )
+        if frame in self.quorum_cache:
+            return self.quorum_cache[frame]
+        else:
+            self.quorum_cache[frame] = 2 * sum(self.validator_weights.values()) // 3 + 1
+            return self.quorum_cache[frame]
 
     def get_direct_child(self, event):
         direct_child_uuid = next(
@@ -143,6 +138,7 @@ class Lachesis:
 
     def set_roots(self, event):
         if self.is_root(event):
+            event.root = True
             if event.sequence == 1:
                 event.frame = 1
             else:
@@ -153,6 +149,8 @@ class Lachesis:
                 self.root_set_events[event.frame].append(event)
             else:
                 self.root_set_events[event.frame] = [event]
+                # Immediately calculate the quorum for this new frame
+                self.quorum(event.frame)
 
     def forkless_cause(self, event_a, event_b):
         if event_a.validator in self.validator_cheater_list.get(
@@ -165,10 +163,26 @@ class Lachesis:
         a = event_a.highest_observed
         b = event_b.lowest_observing
 
+        # if event_a.validator == "D" and event_b.validator == "D":
+        #     print()
+        #     print("forkless cause")
+        #     print(event_a)
+        #     print(event_b)
+
         yes = 0
         for validator, sequence in a.items():
             if validator in b and b[validator]["sequence"] <= sequence:
                 yes += self.validator_weights[validator]
+
+        if (
+            yes >= self.quorum(event_b.frame)
+            and event_b.validator == "D"
+            and event_b.sequence == 1
+        ):
+            print("YES")
+            print(event_a)
+            print(event_b)
+            print("value of yes:", yes)
 
         return yes >= self.quorum(event_b.frame)
 
@@ -246,6 +260,19 @@ class Lachesis:
 
                 parents.extend(parent.parents)
 
+    def process_events(self, events):
+        # Sort events by timestamp
+        sorted_events = sorted(events, key=lambda e: e.timestamp)
+
+        # Add events to Lachesis
+        for event in sorted_events:
+            self.detect_forks(event)
+            self.set_highest_events_observed(event)
+            self.set_lowest_observing_events(event)
+            self.set_roots(event)
+            self.events.append(event)
+            self.uuid_event_dict[event.uuid] = event
+
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "blue", "cyan", "purple"]
 
@@ -254,7 +281,7 @@ class Lachesis:
         darker_colors = []
         for color in colors_rgb:
             darker_color = tuple(c * 0.8 for c in color)
-            darker_colors.append(darker_color)
+            darker_colors.append(mcolors.to_hex(darker_color))
 
         timestamp_dag = nx.DiGraph()
 
@@ -265,8 +292,13 @@ class Lachesis:
             sequence = event.sequence
             frame = event.frame
             weight = self.validator_weights[validator]
+            root = event.root
             timestamp_dag.add_node(
-                (validator, timestamp), seq=sequence, frame=frame, weight=weight
+                (validator, timestamp),
+                seq=sequence,
+                frame=frame,
+                weight=weight,
+                root=root,
             )
             for parent_uuid in event.parents:
                 parent = self.uuid_event_dict[parent_uuid]
@@ -275,6 +307,16 @@ class Lachesis:
                     (validator, timestamp),
                     (parent.validator, parent_timestamp),
                 )
+
+        # Create color map
+        color_map = {}
+        for node in timestamp_dag:
+            frame = timestamp_dag.nodes[node]["frame"]
+            root = timestamp_dag.nodes[node]["root"]
+            color_index = frame % len(colors)
+            color_map[node] = (
+                darker_colors[color_index] if root else colors[color_index]
+            )
 
         pos = {}
         num_nodes = len(self.validator_weights)
@@ -294,7 +336,12 @@ class Lachesis:
                 pos[node] = (j, i)
 
         labels = {
-            node: (node[0], node[1], timestamp_dag.nodes[node]["seq"])
+            node: (
+                node[0],
+                node[1],
+                timestamp_dag.nodes[node]["seq"],
+                timestamp_dag.nodes[node]["weight"],
+            )
             for node in timestamp_dag.nodes
         }
 
@@ -303,44 +350,31 @@ class Lachesis:
             pos,
             with_labels=True,
             labels={
-                val: r"$\mathrm{{{}}}_{{{},{}}}$".format(
-                    labels[val][0], labels[val][1], labels[val][2]
+                val: r"$\mathrm{{{}}}_{{{},{},{}}}$".format(
+                    labels[val][0], labels[val][1], labels[val][2], labels[val][3]
                 )
                 for val in labels
             },
             font_family="serif",
             font_size=9,
             node_size=1300,
-            node_color=["blue" for node in timestamp_dag.nodes()],
+            node_color=[color_map[node] for node in timestamp_dag.nodes],
             font_weight="bold",
         )
 
         fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
-        # plt.show()
         plt.close()
-
-    def process_events(self, events):
-        # Sort events by timestamp
-        sorted_events = sorted(events, key=lambda e: e.timestamp)
-
-        # Add events to Lachesis
-        for event in sorted_events:
-            self.detect_forks(event)
-            self.set_highest_events_observed(event)
-            self.set_lowest_observing_events(event)
-            self.set_roots(event)
-            self.events.append(event)
-            self.uuid_event_dict[event.uuid] = event
 
 
 if __name__ == "__main__":
-    event_list = parse_data("../inputs/graphs/graph_3.txt")
+    event_list = parse_data("../inputs/graphs/graph_1.txt")
     validators, validator_weights = filter_validators_and_weights(event_list)
     lachesis = Lachesis()
     lachesis.initialize_validators(validators, validator_weights)
     lachesis.process_events(event_list)
     print(lachesis.validator_weights)
     print(lachesis.validator_cheater_list)
+    print(lachesis.events)
     print(lachesis.frame)
     print(lachesis.root_set_events)
     print(lachesis.graph_results("result.pdf"))
