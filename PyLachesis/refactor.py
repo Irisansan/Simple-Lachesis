@@ -109,14 +109,14 @@ class Lachesis:
                         cheater_observation += self.validator_weights[validator]
                 if cheater_observation >= 2 * weights_total // 3 + 1:
                     self.confirmed_cheaters.add(cheater)
-                    self.validator_weights[cheater] = 0
                     weights_total -= self.validator_weights[cheater]
+                    self.validator_weights[cheater] = 0
 
             for validator, timestamp in self.highest_validator_timestamps.items():
                 if self.time - timestamp >= 20:
                     # If the validator's highest timestamp is too old, ignore its weight
-                    self.validator_weights[validator] = 0
                     weights_total -= self.validator_weights[validator]
+                    self.validator_weights[validator] = 0
 
             self.quorum_cache[frame] = 2 * weights_total // 3 + 1
             return self.quorum_cache[frame]
@@ -304,9 +304,10 @@ class Lachesis:
 
         # Get the maximum timestamp
         max_timestamp = max(timestamp_event_dict.keys())
+        min_timestamp = min(timestamp_event_dict.keys())
 
         # Process events from timestamp 1 to max_timestamp
-        for timestamp in range(1, max_timestamp + 1):
+        for timestamp in range(min_timestamp, max_timestamp + 1):
             # Retrieve, shuffle and process events with the current timestamp
             current_timestamp_events = timestamp_event_dict.get(timestamp, [])
             random.shuffle(current_timestamp_events)
@@ -432,12 +433,13 @@ if __name__ == "__main__":
     lachesis = Lachesis()
     lachesis.initialize_validators(validators, validator_weights)
     lachesis.process_events(event_list)
+    lachesis.graph_results("result.pdf")
     print(lachesis.validator_weights)
-    print(lachesis.events)
-    print(lachesis.frame)
-    print(lachesis.root_set_events)
-    print(lachesis.graph_results("result.pdf"))
-    print(lachesis.validator_cheater_list)
-    print(lachesis.suspected_cheaters)
-    print(lachesis.confirmed_cheaters)
-    print(lachesis.highest_validator_timestamps)
+    # print(lachesis.events)
+    # print(lachesis.frame)
+    # print(lachesis.root_set_events)
+    # print(lachesis.graph_results("result.pdf"))
+    # print(lachesis.validator_cheater_list)
+    # print(lachesis.suspected_cheaters)
+    # print(lachesis.confirmed_cheaters)
+    # print(lachesis.highest_validator_timestamps)
