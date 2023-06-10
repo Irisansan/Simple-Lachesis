@@ -1,7 +1,7 @@
 import glob
 import os
 from tqdm import tqdm
-from refactor import Lachesis, LachesisMultiInstance
+from lachesis import Lachesis, LachesisMultiInstance
 
 import os
 

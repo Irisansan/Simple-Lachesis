@@ -1,104 +1,173 @@
-import random
-from sortedcontainers import SortedSet, SortedDict
 from collections import deque
-import matplotlib.colors as mcolors
-import matplotlib.pyplot as plt
+import os
+import re
+import random
 import networkx as nx
+import matplotlib.pyplot as plt
+import matplotlib.colors as mcolors
+from sortedcontainers import SortedSet
 
 
-def convert_input_to_DAG(input_file):
-    nodes = []
+def parse_data(file_path):
+    event_list = []
 
-    with open(input_file, "r") as f:
-        for line in f:
-            line = line.strip()
-            parts = line.split(";")
+    with open(file_path, "r") as file:
+        for line in file:
+            unique_id_match = re.search(r"unique_id:\s([a-z0-9-]*)", line)
+            label_match = re.search(r"label:\s\(([\w\s]+),(\d+),(\d+),(\d+)\)", line)
+            if not (unique_id_match and label_match):
+                continue
 
-            node_info = parts[0].strip()[6:-1]
-            node_id, timestamp, predecessors = node_info.split(",")
-            timestamp, predecessors = int(timestamp), int(predecessors)
-            node_key = (node_id[1:], predecessors)
+            unique_id = unique_id_match.group(1)
+            validator, timestamp, sequence, weight = label_match.groups()
 
-            node = Node(node_key, timestamp, predecessors)
-            nodes.append(node)
+            event = Event(
+                validator, int(timestamp), int(sequence), int(weight), unique_id
+            )
+            event_list.append(event)
 
-            for child_info in parts[1:]:
-                child_info = child_info.strip()[7:-1]
-                child_info_parts = child_info.split(",")
-                if len(child_info_parts) < 2:
-                    continue
-                child_id, child_timestamp = child_info_parts[:2]
-                child_timestamp = int(child_timestamp)
-                child_predecessors = int(child_info_parts[2])
-                child_key = (child_id[1:], child_predecessors)
+            child_unique_ids = re.findall(r"child_unique_id:\s([a-z0-9-]*)", line)
+            for child_unique_id in child_unique_ids:
+                event.add_parent(child_unique_id)
 
-                child = Node(child_key, child_timestamp, child_predecessors)
-                node.children.append(child)
+    return event_list
 
-    return nodes
+
+def filter_validators_and_weights(events):
+    validators = []
+    validator_weights = {}
+
+    for event in events:
+        if event.timestamp > 100:
+            break
+        if event.validator not in validators:
+            validators.append(event.validator)
+            validator_weights[event.validator] = event.weight
+
+    return validators, validator_weights
+
+
+class Event:
+    def __init__(self, validator, timestamp, sequence, weight, unique_id):
+        self.validator = validator
+        self.timestamp = timestamp
+        self.sequence = sequence
+        self.weight = weight
+        self.uuid = unique_id
+        self.frame = None
+        self.root = False
+        self.atropos = False
+        self.highest_observed = {}
+        self.lowest_observing = {}
+        self.visited = {}
+        self.parents = []
+        self.highest_timestamps_observed = {}
+
+    def add_parent(self, parent_uuid):
+        self.parents.append(parent_uuid)
+
+    def __repr__(self):
+        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed}, {self.lowest_observing})"
+
+    def __eq__(self, other):
+        if isinstance(other, Event):
+            return (
+                self.validator == other.validator
+                and self.timestamp == other.timestamp
+                and self.sequence == other.sequence
+                and self.weight == other.weight
+                and self.uuid == other.uuid
+            )
+        return False
+
+    def __lt__(self, other):
+        if isinstance(other, Event):
+            return (
+                self.validator,
+                self.timestamp,
+                self.sequence,
+                self.weight,
+                self.uuid,
+            ) < (
+                other.validator,
+                other.timestamp,
+                other.sequence,
+                other.weight,
+                other.uuid,
+            )
+        return NotImplemented
+
+    def __hash__(self):
+        return hash(
+            (self.validator, self.timestamp, self.sequence, self.weight, self.uuid)
+        )
 
 
 class LachesisMultiInstance:
-    def __init__(self):
+    def __init__(self, graph_results=False):
+        self.file_path = None
         self.instances = {}
-        self.nodes = []
-        self.seen_validators = set()
-        self.base_validator = Lachesis()
+        self.graph_results = graph_results
+        self.validators = []
+        self.validator_weights = {}
 
-    def initialize_instances(self, validators, weights):
-        for validator in validators:
-            self.instances[validator] = Lachesis(validator)
-            self.instances[validator].validators = validators.copy()
-            self.instances[validator].initialize_validator_weights(validators, weights)
+    def parse_and_initialize(self):
+        event_list = parse_data(self.file_path)
+        self.validators, self.validator_weights = filter_validators_and_weights(
+            event_list
+        )
 
-    def add_validators(self, node):
-        validator = node.id[0]
-        self.seen_validators.add(validator)
+        uuid_validator_map = {}
+        for event in event_list:
+            uuid_validator_map[event.uuid] = event.validator
+
+        for validator in self.validators:
+            lachesis_instance = Lachesis(validator)
+            lachesis_instance.initialize_validators(
+                self.validators, self.validator_weights
+            )
+            self.instances[validator] = lachesis_instance
+
+        return event_list, uuid_validator_map
+
+    def add_validators(self, event):
+        validator = event.validator
+        if validator not in self.validators:
+            self.validators.append(validator)
+            self.validator_weights[validator] = event.weight
+            lachesis_instance = Lachesis(event.validator)
+            lachesis_instance.initialize_validators(
+                self.validators, self.validator_weights
+            )
+            self.instances[event.validator] = lachesis_instance
         for instance in self.instances.values():
             if validator not in instance.validators:
-                instance.validators.add(validator)
-                instance.validator_weights[validator] = node.weight
+                instance.validators.append(validator)
+                instance.validator_weights[validator] = event.weight
 
-    def process_graph_by_timesteps(self):
-        max_timestamp = max(node.timestamp for node in self.nodes)
+    def process(self):
+        (
+            event_list,
+            uuid_validator_map,
+        ) = self.parse_and_initialize()
 
-        for current_time in range(max_timestamp + 1):
-            nodes_to_process = [
-                node for node in self.nodes if node.timestamp == current_time
-            ]
+        timestamp_event_dict = {}
 
-            random.shuffle(nodes_to_process)
+        for event in event_list:
+            if event.timestamp not in timestamp_event_dict:
+                timestamp_event_dict[event.timestamp] = []
+            timestamp_event_dict[event.timestamp].append(event)
 
-            for node in nodes_to_process:
-                validator = node.id[0]
-                seq = node.predecessors
+        max_timestamp = max(timestamp_event_dict.keys())
+        min_timestamp = min(timestamp_event_dict.keys())
 
-                if node.id[0] not in self.seen_validators:
-                    self.add_validators(node)
-
-                event = Event(
-                    id=(validator, seq),
-                    seq=seq,
-                    creator=validator,
-                    parents=[(parent.id) for parent in node.children],
-                )
-
-                instance = self.instances[validator]
-                if event.id not in instance.event_timestamps:
-                    instance.event_timestamps[event.id] = []
-                instance.event_timestamps[event.id].append(current_time)
-
-                event_key = (event.id, current_time)
-                if event_key in instance.event_timestamp_parents:
-                    instance.event_timestamp_parents[event_key].extend(
-                        [(parent.id, parent.timestamp) for parent in node.children]
-                    )
-                else:
-                    instance.event_timestamp_parents[event_key] = [
-                        (parent.id, parent.timestamp) for parent in node.children
-                    ]
-
-                instance.defer_event_processing(event, current_time, self.instances)
+        for timestamp in range(min_timestamp, max_timestamp + 1):
+            current_timestamp_events = timestamp_event_dict.get(timestamp, [])
+            for event in current_timestamp_events:
+                if event.validator not in self.instances:
+                    self.add_validators(event)
+                instance = self.instances[event.validator]
+                instance.defer_event(event, self.instances, uuid_validator_map)
 
             for instance in self.instances.values():
                 instance.process_request_queue(self.instances)
@@ -106,638 +175,481 @@ class LachesisMultiInstance:
             for instance in self.instances.values():
                 instance.process_deferred_events()
 
-            for instance in self.instances.values():
-                instance.time += 1
+    def run_lachesis_multiinstance(self, input_filename, output_folder):
+        self.file_path = input_filename
+        self.process()
 
-        return self.instances
-
-    def run_lachesis_multi_instance(self, input_file, output_file, create_graph=False):
-        nodes = convert_input_to_DAG(input_file)
-        self.nodes = nodes
-
-        sorted_nodes = sorted(
-            (node for node in nodes if node.timestamp <= 20),
-            key=lambda node: node.timestamp,
-        )
-        validators = set([node.id[0] for node in sorted_nodes])
-        weights = [node.weight for node in sorted_nodes]
-
-        self.initialize_instances(validators, weights)
-        self.process_graph_by_timesteps()
-
-        self.base_validator.process_graph_by_timesteps(self.nodes)
-        self.base_validator.lachesis_state = self.base_validator.return_lachesis_state()
-        reference_state = self.base_validator.lachesis_state
+        reference = Lachesis()
+        reference.run_lachesis(input_filename, "./result.pdf")
 
         for instance in self.instances.values():
-            # graphing
-            if create_graph:
-                output_file_validator = instance.validator + "_" + output_file
-                instance.graph_results(output_file_validator)
+            # Numeric properties
+            assert instance.frame <= reference.frame, "Frame is greater in the instance"
+            assert instance.block <= reference.block, "Block is greater in the instance"
+            assert instance.time <= reference.time, "Time is greater in the instance"
+            assert (
+                instance.frame_to_decide <= reference.frame_to_decide
+            ), "Frame to decide is greater in the instance"
 
-            # verifying deterministic computation in different validators
-            self.lachesis_state = instance.return_lachesis_state()
-            instance_state = self.lachesis_state
+            # List/set properties
+            assert set(instance.root_set_validators).issubset(
+                set(reference.root_set_validators)
+            ), "Root set validators in instance is not a subset of reference"
+            assert set(instance.events).issubset(
+                set(reference.events)
+            ), "Events in instance is not a subset of reference"
 
-            try:
-                assert instance_state["frame"] <= reference_state["frame"]
-                assert all(
-                    [
-                        f in reference_state["root_set_validators"]
-                        for f in instance_state["root_set_validators"]
-                    ]
-                )
-                assert all(
-                    [
-                        instance_state["root_set_validators"][f]
-                        <= reference_state["root_set_validators"][f]
-                        for f in instance_state["root_set_validators"]
-                    ]
-                )
-                assert all(
-                    [
-                        f in reference_state["root_set_nodes"]
-                        for f in instance_state["root_set_nodes"]
-                    ]
-                )
-                assert all(
-                    [
-                        instance_state["root_set_nodes"][f]
-                        <= reference_state["root_set_nodes"][f]
-                        for f in instance_state["root_set_nodes"]
-                    ]
-                )
-                assert instance_state["cheater_list"] <= reference_state["cheater_list"]
-                assert instance_state["time"] <= reference_state["time"]
+            # Dictionary properties
+            for f in reference.root_set_events:
+                assert SortedSet(instance.root_set_events.get(f, [])) <= SortedSet(
+                    reference.root_set_events[f]
+                ), f"Root set events for frame {f} in instance is not a subset of reference"
+            assert set(instance.validator_cheater_list.keys()).issubset(
+                set(reference.validator_cheater_list.keys())
+            ), "Validator cheater list in instance is not a subset of reference"
 
-                # ATROPOS parameters
-                assert instance_state["block"] <= reference_state["block"]
+            for key in instance.uuid_event_dict.keys():
                 assert (
-                    instance_state["frame_to_decide"]
-                    <= reference_state["frame_to_decide"]
+                    key in reference.uuid_event_dict.keys()
+                ), f"Key {key} in uuid_event_dict not found in reference"
+                instance_event = instance.uuid_event_dict[key]
+                reference_event = reference.uuid_event_dict[key]
+                assert (
+                    instance_event == reference_event
+                ), f"Event for {key} in instance is not equal to reference"
+
+            for key in instance.quorum_cache.keys():
+                assert (
+                    key in reference.quorum_cache.keys()
+                ), f"Key {key} in quorum_cache not found in reference"
+                assert (
+                    instance.quorum_cache[key] == reference.quorum_cache[key]
+                ), f"Quorum cache value for {key} in instance is greater than reference"
+
+        if self.graph_results:
+            for validator, instance in self.instances.items():
+                output_filename = os.path.join(
+                    output_folder, f"validator_{validator}_result.pdf"
                 )
-                assert all(
-                    [
-                        f in reference_state["atropos_roots"]
-                        for f in instance_state["atropos_roots"]
-                    ]
-                )
-                assert all(
-                    [
-                        instance_state["atropos_roots"][f]
-                        == reference_state["atropos_roots"][f]
-                        for f in instance_state["atropos_roots"]
-                    ]
-                )
-
-            except Exception as e:
-                print("instance:", instance.validator)
-                print("lachesis_state:\n", instance_state)
-                print("quorum_values:\n", instance.quorum_values)
-                # print("election_votes:\n", instance.election_votes)
-                print()
-                print("reference state of base validator:\n", reference_state)
-                print("quorum_values:\n", self.base_validator.quorum_values)
-                # print("election_votes:\n", self.base_validator.election_votes)
-                raise RuntimeError(
-                    "Assertion of deterministic computation failed:", str(e)
-                )
-
-
-class Node:
-    def __init__(self, id, timestamp, predecessors):
-        self.id = id
-        self.timestamp = timestamp
-        self.predecessors = predecessors
-        self.children = []
-        self.weight = 1
-
-    def __repr__(self):
-        return f"Node({self.id}, {self.timestamp}, {self.predecessors})"
-
-
-class Event:
-    def __init__(
-        self,
-        id,
-        seq,
-        creator,
-        parents,
-        frame=None,
-        simultaneous_duplicate=False,
-    ):
-        self.id = id
-        self.seq = seq
-        self.creator = creator
-        self.parents = parents
-        self.lowest_events_vector = {}
-        self.highest_events_observed_by_event = {}
-        self.frame = frame
-        self.simultaneous_duplicate = simultaneous_duplicate
-
-    def copy_basic_properties(self):
-        return Event(
-            id=self.id,
-            seq=self.seq,
-            creator=self.creator,
-            parents=self.parents,
-            simultaneous_duplicate=self.simultaneous_duplicate,
-        )
+                instance.graph_results(output_filename)
 
 
 class Lachesis:
     def __init__(self, validator=None):
-        self.frame = 1
-        self.block = 1
-        self.epoch = 1
-        self.root_set_validators = {}
-        self.root_set_nodes = {}
-        self.election_votes = {}
-        self.frame_to_decide = 1
-        self.cheater_list = set()
         self.validator = validator
-        self.validators = set()
+        self.validators = []
         self.validator_weights = {}
-        self.time = 0
-        self.events = {}
-        self.event_timestamps = {}
-        self.timestep_nodes = []
-        self.decided_roots = {}
+        self.time = 1
+        self.events = []
+        self.frame = 1
+        self.epoch = 1
+        self.root_set_validators = []
+        self.root_set_events = {}
+        self.frame_to_decide = 1
+        self.observed_sequences = {}
+        self.validator_cheater_list = {}
+        self.decided_roots = []
+        self.atropos_roots = []
+        self.quorum_cache = {}
+        self.uuid_event_dict = {}
+        self.suspected_cheaters = set()
+        self.confirmed_cheaters = set()
+        self.highest_validator_timestamps = {}
+        self.election_votes = {}
         self.atropos_roots = {}
-        self.last_validator_sequence = {}
+        self.decided_roots = {}
+        self.block = 1
+        self.frame_to_decide = 1
         self.request_queue = deque()
         self.process_queue = {}
-        self.quorum_values = {}
-        self.next_event_index = {}
-        self.event_parents = {}
-        self.event_timestamp_indices = {}
-        self.event_timestamp_parents = {}
-        self.forks = {}
-        self.initial_validator_weights = {}
-        self.validator_weights = {}
-        self.lachesis_state = None
 
-    def initialize_validator_weights(self, validators, weights):
+    def initialize_validators(self, validators, validator_weights):
         self.validators = validators
-        self.validator_weights = dict(zip(validators, weights))
-        self.initial_validator_weights = self.validator_weights.copy()
-        self.validator_weights = self.validator_weights.copy()
+        self.validator_weights = validator_weights
 
-    def defer_event_processing(self, event, timestamp, instances):
-        existing_events = self.process_queue.get(event.id, [])
-
-        if not existing_events:
-            self.process_queue[event.id] = [
-                {
-                    "timestamp": timestamp,
-                    "event": event,
-                    "parents": self.event_timestamp_parents.get(
-                        (event.id, timestamp), []
-                    ),
-                }
-            ]
-        else:
-            same_timestamp_event_dict = None
-            for existing_event_dict in existing_events:
-                if existing_event_dict["timestamp"] == timestamp:
-                    same_timestamp_event_dict = existing_event_dict
-                    break
-
-            if same_timestamp_event_dict:
-                same_timestamp_event_dict["event"].parents = list(
-                    set(same_timestamp_event_dict["event"].parents).union(
-                        set(event.parents)
-                    )
-                )
-                same_timestamp_event_dict["event"].simultaneous_duplicate = True
-            else:
-                self.process_queue[event.id].append(
-                    {
-                        "timestamp": timestamp,
-                        "event": event,
-                        "parents": self.event_timestamp_parents.get(
-                            (event.id, timestamp), []
-                        ),
-                    }
-                )
-
-        self.update_request_queue(event, instances)
-
-    def update_request_queue(self, event, instances):
-        existing_events = self.process_queue[event.id]
-
-        for event_data in existing_events:
-            parent_id_timestamp_list = event_data["parents"]
-
-            for parent_id, parent_timestamp in parent_id_timestamp_list:
-                if (
-                    not any(
-                        (parent_timestamp, parent_id) in parent_event_tuples
-                        for parent_event_tuples in self.process_queue.values()
-                    )
-                    and (parent_id, parent_timestamp)
-                    not in self.event_timestamp_parents
-                ):
-                    parent_instance = instances[parent_id[0]]
-                    parent_instance.request_queue.append(
-                        (event.creator, [(parent_id, parent_timestamp)])
+    def defer_event(self, event, instances, uuid_validator_map):
+        self.process_queue[event.uuid] = event
+        for parent_uuid in event.parents:
+            if (
+                parent_uuid not in self.process_queue
+                and parent_uuid not in self.uuid_event_dict
+            ):
+                parent_validator = uuid_validator_map.get(parent_uuid)
+                if parent_validator is not None:
+                    parent_creator_instance = instances[parent_validator]
+                    parent_creator_instance.request_queue.append(
+                        (self.validator, parent_uuid)
                     )
 
     def process_request_queue(self, instances):
         while self.request_queue:
-            (
-                recipient_id,
-                missing_event_id_timestamp_tuples,
-            ) = self.request_queue.popleft()
-
-            recipient_instance = instances[recipient_id]
-            for event_id, timestamp in missing_event_id_timestamp_tuples:
+            requestor_id, requested_uuid = self.request_queue.popleft()
+            requestor_instance = instances[requestor_id]
+            requested_event = self.uuid_event_dict[requested_uuid]
+            requestor_instance.process_queue[requested_uuid] = requested_event
+            for parent_uuid in requested_event.parents:
                 if (
-                    event_id,
-                    timestamp,
-                ) not in recipient_instance.event_timestamp_parents:
-                    missing_event = self.events[event_id].copy_basic_properties()
-                    missing_event.parents = [
-                        parent_id
-                        for parent_id, _ in self.event_timestamp_parents[
-                            (event_id, timestamp)
-                        ]
-                    ]
-
-                    if event_id not in recipient_instance.process_queue:
-                        recipient_instance.process_queue[event_id] = [
-                            {
-                                "timestamp": timestamp,
-                                "event": missing_event,
-                                "parents": self.event_timestamp_parents.get(
-                                    (event_id, timestamp), []
-                                ),
-                            }
-                        ]
-                    else:
-                        if not any(
-                            existing_event_dict["timestamp"] == timestamp
-                            for existing_event_dict in recipient_instance.process_queue[
-                                event_id
-                            ]
-                        ):
-                            recipient_instance.process_queue[event_id].append(
-                                {
-                                    "timestamp": timestamp,
-                                    "event": missing_event,
-                                    "parents": self.event_timestamp_parents.get(
-                                        (event_id, timestamp), []
-                                    ),
-                                }
-                            )
-
-                    parent_id_timestamp_list = self.event_timestamp_parents[
-                        (event_id, timestamp)
-                    ]
-
-                    for parent_id, parent_timestamp in parent_id_timestamp_list:
-                        if (
-                            not any(
-                                (
-                                    existing_event_dict["timestamp"],
-                                    existing_event_dict["event"].id,
-                                )
-                                == (parent_timestamp, parent_id)
-                                for existing_event_dicts in recipient_instance.process_queue.values()
-                                for existing_event_dict in existing_event_dicts
-                            )
-                            and (parent_id, parent_timestamp)
-                            not in recipient_instance.event_timestamp_parents
-                        ):
-                            self.request_queue.append(
-                                (recipient_id, [(parent_id, parent_timestamp)])
-                            )
+                    parent_uuid not in requestor_instance.uuid_event_dict
+                    and parent_uuid not in requestor_instance.process_queue
+                ):
+                    self.request_queue.append((requestor_id, parent_uuid))
 
     def process_deferred_events(self):
-        all_event_tuples = []
-        for event_id in self.process_queue:
-            all_event_tuples.extend(self.process_queue[event_id])
+        if self.process_queue:
+            self.process_events(list(self.process_queue.values()))
+            self.process_queue.clear()
 
-        all_event_tuples.sort(key=lambda x: x["timestamp"])
-
-        for event_data in all_event_tuples:
-            timestamp = event_data["timestamp"]
-            event = event_data["event"]
-
-            if event.id not in self.event_timestamps:
-                self.event_timestamps[event.id] = [timestamp]
-            else:
-                self.event_timestamps[event.id].append(timestamp)
-
-            self.event_timestamp_parents[(event.id, timestamp)] = event_data["parents"]
-
-            self.process_event(event)
-
-            self.process_queue[event.id].remove(event_data)
-            if not self.process_queue[event.id]:
-                del self.process_queue[event.id]
-
-    def process_event(self, event):
-        self.events[event.id] = event
-        fork_detected = self.detect_forks(event)
-
-        if fork_detected:
-            if event.creator not in self.forks:
-                self.forks[event.creator] = event.seq
-                self.cheater_list.add(event.creator)
-            self.validator_weights[event.creator] = 0
-
-        if self.frame not in self.quorum_values:
-            self.quorum(self.frame)
-
-        if event.creator not in self.cheater_list:
-            self.highest_events_observed_by_event(event)
-            self.set_lowest_events_vector(event)
-
-            is_root, target_frame = self.check_for_roots(event)
-            if is_root:
-                if target_frame not in self.root_set_validators:
-                    self.root_set_validators[target_frame] = SortedSet()
-                if target_frame not in self.root_set_nodes:
-                    self.root_set_nodes[target_frame] = SortedSet()
-
-                event.frame = target_frame
-
-                self.events[event.id].frame = target_frame
-
-                self.frame = target_frame if target_frame > self.frame else self.frame
-
-                if event.creator not in self.cheater_list:
-                    self.root_set_validators[target_frame].add(event.creator)
-                    self.root_set_nodes[target_frame].add(event.id)
-
-                if self.frame not in self.quorum_values:
-                    self.quorum(self.frame)
-
-                # self.atropos_voting(event.id)
-
-            else:
-                direct_child = self.events[(event.creator, event.seq - 1)]
-                event.frame = direct_child.frame
-
-    def detect_forks(self, event):
-        fork_detected = False
-
-        if event.simultaneous_duplicate:
-            if self.validator == "A":
-                print("simultaneous duplicate", event.id)
-            self.cheater_list.add(event.creator)
-            self.validator_weights[event.creator] = 0
-            fork_detected = True
-
-        validator = event.creator
-        seq = event.seq
-
-        if validator not in self.last_validator_sequence:
-            self.last_validator_sequence[validator] = seq
-        elif self.last_validator_sequence[validator] < seq:
-            self.last_validator_sequence[validator] = seq
+    def quorum(self, frame):
+        if frame in self.quorum_cache:
+            return self.quorum_cache[frame]
         else:
-            if self.validator == "A":
-                print("same sequence", event.id)
-            self.cheater_list.add(validator)
-            self.validator_weights[validator] = 0
-            fork_detected = True
+            weights_total = sum(self.validator_weights.values())
 
-        if self.validator == "A" and fork_detected:
-            print(self.validator_weights)
+            for cheater in self.suspected_cheaters:
+                cheater_observation = 0
+                for validator, cheaters in self.validator_cheater_list.items():
+                    if cheater in cheaters:
+                        cheater_observation += self.validator_weights[validator]
+                if cheater_observation >= 2 * weights_total // 3 + 1:
+                    self.confirmed_cheaters.add(cheater)
+                    weights_total -= self.validator_weights[cheater]
+                    self.validator_weights[cheater] = 0
 
-        return fork_detected
+            # for validator, timestamp in self.highest_validator_timestamps.items():
+            #     if self.time - timestamp >= 20:
+            #         weights_total -= self.validator_weights[validator]
+            #         self.validator_weights[validator] = 0
 
-    def quorum(self, frame_number):
-        if frame_number not in self.quorum_values:
-            self.quorum_values[frame_number] = (
-                2 * sum(self.validator_weights.values()) // 3 + 1
-            )
+            self.quorum_cache[frame] = 2 * weights_total // 3 + 1
+            return self.quorum_cache[frame]
 
-        return self.quorum_values[frame_number]
+    def get_direct_child(self, event):
+        direct_child_uuid = next(
+            (
+                uuid
+                for uuid in event.parents
+                if self.uuid_event_dict[uuid].sequence == event.sequence - 1
+                and self.uuid_event_dict[uuid].validator == event.validator
+            ),
+            None,
+        )
+        if direct_child_uuid is not None:
+            return self.uuid_event_dict[direct_child_uuid]
+        else:
+            return None
 
-    def highest_events_observed_by_event(self, node):
-        for parent_id in node.parents:
-            parent = self.events[parent_id]
+    def is_root(self, event):
+        if event.sequence == 1:
+            return True
 
-            if (
-                parent.creator not in node.highest_events_observed_by_event
-                or parent.seq > node.highest_events_observed_by_event[parent.creator]
-            ):
-                node.highest_events_observed_by_event[parent.creator] = parent.seq
-
-            for creator, seq in parent.highest_events_observed_by_event.items():
-                if (
-                    creator not in node.highest_events_observed_by_event
-                    or seq > node.highest_events_observed_by_event[creator]
-                ):
-                    node.highest_events_observed_by_event[creator] = seq
-
-    def forkless_cause(self, event_a, event_b):
-        if event_a.id[0] in self.cheater_list or event_b.id[0] in self.cheater_list:
+        direct_child = self.get_direct_child(event)
+        if direct_child is None:
             return False
 
-        a = event_a.highest_events_observed_by_event
-        b = event_b.lowest_events_vector
+        event.frame = direct_child.frame
+        frame_roots = self.root_set_events.get(event.frame, [])
+        if not frame_roots:
+            return False
 
-        yes = 0
-        for validator, seq in a.items():
-            if validator in b and b[validator]["seq"] <= seq:
-                yes += self.validator_weights[validator]
+        forkless_cause_weights = sum(
+            [
+                self.validator_weights[root.validator]
+                for root in frame_roots
+                if self.forkless_cause(event, root)
+            ]
+        )
 
-        return yes >= self.quorum(event_b.frame)
+        return forkless_cause_weights >= self.quorum(event.frame)
 
-    def set_lowest_events_vector(self, event):
-        parents = deque(event.parents)
-
-        while parents:
-            parent_id = parents.popleft()
-            if parent_id[0] in self.cheater_list:
-                continue
-            parent = self.events[parent_id]
-            parent_vector = parent.lowest_events_vector
-
-            if event.creator not in parent_vector:
-                parent_vector[event.creator] = {"event_id": event.id, "seq": event.seq}
-
-                if event.creator != parent.creator:
-                    parents.extend(parent.parents)
-
-    def check_for_roots(self, event):
-        if event.seq == 1:
-            return True, 1
-        else:
-            direct_child = self.events[(event.creator, event.seq - 1)]
-
-            if event.creator not in self.cheater_list:
-                forkless_cause_current_frame = self.forkless_cause_quorum(
-                    event, direct_child.frame
-                )
-                if forkless_cause_current_frame:
-                    return True, direct_child.frame + 1
-
-            return False, None
-
-    def forkless_cause_quorum(self, event, frame_number):
-        forkless_cause_count = 0
-        frame_roots = self.root_set_nodes[frame_number]
-
-        for root in frame_roots:
-            root_event = self.events[root]
-            if self.forkless_cause(event, root_event):
-                forkless_cause_count += self.validator_weights[root_event.creator]
-
-        return forkless_cause_count >= self.quorum(frame_number)
+    def set_roots(self, event):
+        if self.is_root(event):
+            event.root = True
+            if event.sequence == 1:
+                event.frame = self.frame
+            else:
+                event.frame += 1
+            if self.frame < event.frame:
+                self.frame = event.frame
+            if event.frame in self.root_set_events:
+                self.root_set_events[event.frame].append(event)
+            else:
+                self.root_set_events[event.frame] = [event]
+                self.quorum(event.frame)
+            # self.atropos_voting(event)
 
     def atropos_voting(self, new_root):
-        candidates = SortedSet(self.root_set_nodes[self.frame_to_decide])
+        candidates = sorted(
+            self.root_set_events[self.frame_to_decide],
+            key=lambda event: (
+                event.timestamp,
+                event.validator,
+                event.sequence,
+                event.weight,
+            ),
+        )
 
         for candidate in candidates:
             if self.frame_to_decide not in self.election_votes:
-                self.election_votes[self.frame_to_decide] = SortedDict()
+                self.election_votes[self.frame_to_decide] = {}
 
-            if (new_root, candidate) not in self.election_votes[self.frame_to_decide]:
+            if (new_root.uuid, candidate.uuid) not in self.election_votes[
+                self.frame_to_decide
+            ]:
                 vote = None
 
-                if self.frame == self.frame_to_decide + 1:
+                if new_root.frame == self.frame_to_decide + 1:
                     vote = {
                         "decided": False,
-                        "yes": self.forkless_cause(
-                            self.events[new_root],
-                            self.events[candidate],
-                        ),
+                        "yes": self.forkless_cause(new_root, candidate),
                     }
-                elif self.frame >= self.frame_to_decide + 2:
+                elif new_root.frame >= self.frame_to_decide + 2:
                     yes_votes = 0
                     no_votes = 0
 
-                    for prev_root in SortedSet(self.root_set_nodes[self.frame - 1]):
+                    for prev_root in sorted(
+                        self.root_set_events[new_root.frame - 1],
+                        key=lambda event: (
+                            event.timestamp,
+                            event.validator,
+                            event.sequence,
+                            event.weight,
+                        ),
+                    ):
                         prev_vote = self.election_votes[self.frame_to_decide].get(
-                            (prev_root, candidate), {"yes": False}
+                            (prev_root.uuid, candidate.uuid), {"yes": False}
                         )
                         if prev_vote["yes"]:
-                            yes_votes += self.validator_weights[prev_root[0]]
+                            yes_votes += self.validator_weights[prev_root.validator]
                         else:
-                            no_votes += self.validator_weights[prev_root[0]]
+                            no_votes += self.validator_weights[prev_root.validator]
 
                     vote = {
-                        "decided": yes_votes >= self.quorum(self.frame)
-                        or no_votes >= self.quorum(self.frame),
+                        "decided": yes_votes >= self.quorum(new_root.frame)
+                        or no_votes >= self.quorum(new_root.frame),
                         "yes": yes_votes > no_votes,
                     }
 
                 if vote is not None:
                     self.election_votes[self.frame_to_decide][
-                        (new_root, candidate)
+                        (new_root.uuid, candidate.uuid)
                     ] = vote
 
                     if vote["decided"]:
-                        self.decided_roots[candidate] = vote
+                        self.decided_roots[candidate.uuid] = vote
                         if vote["yes"]:
-                            self.atropos_roots[self.frame_to_decide] = candidate
+                            self.atropos_roots[self.frame_to_decide] = candidate.uuid
+                            candidate.atropos = True
                             self.frame_to_decide += 1
                             self.block += 1
 
-    def process_graph_by_timesteps(self, nodes):
-        sorted_nodes = sorted(
-            (node for node in nodes if node.timestamp <= 20),
-            key=lambda node: node.timestamp,
-        )
-        max_timestamp = max(node.timestamp for node in nodes)
+    def forkless_cause(self, event_a, event_b):
+        if event_a.validator in self.validator_cheater_list.get(
+            event_b.validator, set()
+        ) or event_b.validator in self.validator_cheater_list.get(
+            event_a.validator, set()
+        ):
+            return False
 
-        validators = set([node.id[0] for node in sorted_nodes])
-        weights = [node.weight for node in sorted_nodes]
+        a = event_a.highest_observed
+        b = event_b.lowest_observing
 
-        self.initialize_validator_weights(validators, weights)
+        yes = 0
+        for validator, sequence in a.items():
+            if validator in b and b[validator]["sequence"] <= sequence:
+                yes += self.validator_weights[validator]
 
-        for current_time in range(max_timestamp + 1):
-            nodes_to_process = [
-                node for node in nodes if node.timestamp == current_time
-            ]
+        return yes >= self.quorum(event_b.frame)
 
-            random.shuffle(nodes_to_process)
+    def detect_forks(self, event):
+        if event.validator not in self.validator_cheater_list:
+            self.validator_cheater_list[event.validator] = set()
 
-            for node in nodes_to_process:
-                validator = node.id[0]
-                seq = node.predecessors
+        parents = deque(event.parents)
 
-                if validator not in self.validators:
-                    self.validators.add(validator)
-                    self.validator_weights[validator] = node.weight
+        while parents:
+            parent_id = parents.popleft()
+            parent = self.uuid_event_dict[parent_id]
 
-                event = Event(
-                    id=(validator, seq),
-                    seq=seq,
-                    creator=validator,
-                    parents=[(parent.id) for parent in node.children],
-                )
+            if event.validator not in parent.visited:
+                parent.visited[event.validator] = {
+                    "uuid": event.uuid,
+                    "sequence": event.sequence,
+                }
 
-                self.events[event.id] = event
+                if event.validator not in self.observed_sequences:
+                    self.observed_sequences[event.validator] = {}
+                if parent.validator not in self.observed_sequences[event.validator]:
+                    self.observed_sequences[event.validator][parent.validator] = set()
 
-                if event.id not in self.event_timestamps:
-                    self.event_timestamps[event.id] = []
-                self.event_timestamps[event.id].append(current_time)
+                if (
+                    parent.sequence
+                    in self.observed_sequences[event.validator][parent.validator]
+                ):
+                    self.validator_cheater_list[event.validator].add(parent.validator)
+                    self.suspected_cheaters.add(parent.validator)
+                else:
+                    self.observed_sequences[event.validator][parent.validator].add(
+                        parent.sequence
+                    )
+                    parents.extend(parent.parents)
 
-                self.process_event(event)
+    def set_highest_timestamps_observed(self, event):
+        for parent_id in event.parents:
+            parent = self.uuid_event_dict[parent_id]
 
-            self.time += 1
+            if (
+                parent.validator not in event.highest_timestamps_observed
+                or parent.timestamp
+                > event.highest_timestamps_observed[parent.validator]
+            ):
+                event.highest_timestamps_observed[parent.validator] = parent.timestamp
 
-        return self
+            for validator, timestamp in parent.highest_timestamps_observed.items():
+                if (
+                    validator not in event.highest_timestamps_observed
+                    or timestamp > event.highest_timestamps_observed[validator]
+                ):
+                    event.highest_timestamps_observed[validator] = timestamp
 
-    def darken_color(color, darken_factor):
-        r, g, b = color
-        r = int(r * darken_factor)
-        g = int(g * darken_factor)
-        b = int(b * darken_factor)
-        return (r, g, b)
+            for validator, timestamp in event.highest_timestamps_observed.items():
+                if (
+                    validator not in self.highest_validator_timestamps
+                    or timestamp > self.highest_validator_timestamps[validator]
+                ):
+                    self.highest_validator_timestamps[validator] = timestamp
+
+    def set_highest_events_observed(self, event):
+        for parent_id in event.parents:
+            parent = self.uuid_event_dict[parent_id]
+
+            if (
+                parent.validator not in event.highest_observed
+                or parent.sequence > event.highest_observed[parent.validator]
+            ):
+                event.highest_observed[parent.validator] = parent.sequence
+
+            for validator, sequence in parent.highest_observed.items():
+                if (
+                    validator not in event.highest_observed
+                    or sequence > event.highest_observed[validator]
+                ):
+                    event.highest_observed[validator] = sequence
+
+    def set_lowest_observing_events(self, event):
+        parents = deque(event.parents)
+
+        while parents:
+            parent_id = parents.popleft()
+            parent = self.uuid_event_dict[parent_id]
+
+            if parent.validator in self.validator_cheater_list[event.validator]:
+                continue
+
+            if event.validator not in parent.lowest_observing and (
+                parent.validator not in self.validator_cheater_list
+                or event.validator not in self.validator_cheater_list[event.validator]
+            ):
+                parent.lowest_observing[event.validator] = {
+                    "uuid": event.uuid,
+                    "sequence": event.sequence,
+                }
+
+                parents.extend(parent.parents)
+
+    def process_events(self, events):
+        timestamp_event_dict = {}
+        for event in events:
+            if event.timestamp not in timestamp_event_dict:
+                timestamp_event_dict[event.timestamp] = []
+            timestamp_event_dict[event.timestamp].append(event)
+
+        max_timestamp = max(timestamp_event_dict.keys())
+        min_timestamp = min(timestamp_event_dict.keys())
+
+        for timestamp in range(min_timestamp, max_timestamp + 1):
+            self.time = timestamp
+
+            current_timestamp_events = timestamp_event_dict.get(timestamp, [])
+            random.shuffle(current_timestamp_events)
+
+            for event in current_timestamp_events:
+                if event.validator not in self.validators:
+                    self.validators.append(event.validator)
+                    self.validator_weights[event.validator] = event.weight
+                elif event.validator not in self.confirmed_cheaters:
+                    self.validator_weights[event.validator] = event.weight
+
+                self.detect_forks(event)
+                self.set_highest_timestamps_observed(event)
+                self.set_highest_events_observed(event)
+                self.set_lowest_observing_events(event)
+                self.set_roots(event)
+                self.events.append(event)
+                self.uuid_event_dict[event.uuid] = event
 
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "blue", "cyan", "purple"]
+        green = mcolors.to_rgb("green")
+        greens = [
+            tuple(g * 0.7 for g in green),
+            tuple(g * 0.8 for g in green),
+            tuple(g * 0.9 for g in green),
+            green,
+        ]
+        greens = [mcolors.to_hex(g) for g in greens]
 
         colors_rgb = [mcolors.to_rgb(color) for color in colors]
 
         darker_colors = []
         for color in colors_rgb:
             darker_color = tuple(c * 0.8 for c in color)
-            darker_colors.append(darker_color)
-
-        root_set_nodes_new = {}
-        for key, values in self.root_set_nodes.items():
-            for v in values:
-                validator, seq = v
-                timestamp = self.event_timestamps[v][-1]
-                root_set_nodes_new[(validator, timestamp)] = key
-
-        atropos_roots_new = {}
-        for key, value in self.atropos_roots.items():
-            validator, seq = value
-            timestamp = self.event_timestamps[value][-1]
-            atropos_roots_new[(validator, timestamp)] = key
-
-        atropos_colors = ["limegreen", "green"]
+            darker_colors.append(mcolors.to_hex(darker_color))
 
         timestamp_dag = nx.DiGraph()
 
-        for node, data in self.events.items():
-            validator, seq = node
-            timestamp = self.event_timestamps[node][-1]
-            frame = data.frame
+        for event in self.events:
+            if event.validator in self.confirmed_cheaters:
+                continue
+            validator = event.validator
+            timestamp = event.timestamp
+            sequence = event.sequence
+            frame = event.frame
             weight = self.validator_weights[validator]
+            root = event.root
+            atropos = event.atropos
             timestamp_dag.add_node(
-                (validator, timestamp), seq=seq, frame=frame, weight=weight
+                (validator, timestamp),
+                seq=sequence,
+                frame=frame,
+                weight=weight,
+                root=root,
+                atropos=atropos,
             )
-            for parent in data.parents:
-                if parent in self.events:
-                    parent_timestamp = self.event_timestamps[parent][-1]
-                    timestamp_dag.add_edge(
-                        (validator, timestamp),
-                        (parent[0], parent_timestamp),
-                    )
+            for parent_uuid in event.parents:
+                parent = self.uuid_event_dict[parent_uuid]
+                if parent.validator in self.confirmed_cheaters:
+                    continue
+                parent_timestamp = parent.timestamp
+                timestamp_dag.add_edge(
+                    (validator, timestamp),
+                    (parent.validator, parent_timestamp),
+                )
+
+        color_map = {}
+        for node in timestamp_dag:
+            frame = timestamp_dag.nodes[node]["frame"]
+            root = timestamp_dag.nodes[node]["root"]
+            atropos = timestamp_dag.nodes[node]["atropos"]
+            color_index = frame % len(colors)
+            color_map[node] = (
+                greens[frame % len(greens)]
+                if atropos
+                else (darker_colors[color_index] if root else colors[color_index])
+            )
 
         pos = {}
         num_nodes = len(self.validator_weights)
-        num_levels = max([node[1] for node in timestamp_dag.nodes])
+        num_levels = max([event.timestamp for event in self.events])
 
         figsize = [20, 10]
         if num_levels >= 15:
@@ -752,83 +664,51 @@ class Lachesis:
                 node = (chr(i + 65), j)
                 pos[node] = (j, i)
 
-        cheater_nodes = [
-            (validator, timestamp)
-            for validator, timestamp in timestamp_dag.nodes
-            if validator in self.cheater_list
-        ]
-        timestamp_dag.remove_nodes_from(cheater_nodes)
-
         labels = {
-            node: (node[0], node[1], timestamp_dag.nodes[node]["seq"])
+            node: (
+                node[0],
+                node[1],
+                timestamp_dag.nodes[node]["seq"],
+                timestamp_dag.nodes[node]["weight"],
+            )
             for node in timestamp_dag.nodes
         }
-
-        node_colors = {}
-        for node in timestamp_dag.nodes:
-            frame = timestamp_dag.nodes[node]["frame"]
-            if frame:
-                node_colors[node] = colors[frame % len(colors)]
-            else:
-                node_colors[node] = "black"
-            if node in root_set_nodes_new:
-                node_colors[node] = darker_colors[root_set_nodes_new[node] % 5]
-            if node in atropos_roots_new:
-                node_colors[node] = atropos_colors[atropos_roots_new[node] % 2]
 
         nx.draw(
             timestamp_dag,
             pos,
             with_labels=True,
             labels={
-                val: r"$\mathrm{{{}}}_{{{},{}}}$".format(
-                    labels[val][0], labels[val][1], labels[val][2]
+                val: r"$\mathrm{{{}}}_{{{},{},{}}}$".format(
+                    labels[val][0], labels[val][1], labels[val][2], labels[val][3]
                 )
                 for val in labels
             },
             font_family="serif",
             font_size=9,
-            node_size=900,
-            node_color=[
-                node_colors.get(node, node_colors[node])
-                for node in timestamp_dag.nodes()
-            ],
+            node_size=1300,
+            node_color=[color_map[node] for node in timestamp_dag.nodes],
             font_weight="bold",
         )
 
         fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
         plt.close()
 
-    def run_lachesis(self, graph_file, output_file, create_graph=False):
-        nodes = convert_input_to_DAG(graph_file)
-        self.process_graph_by_timesteps(nodes)
-        if create_graph:
-            self.graph_results(output_file)
-        self.lachesis_state = self.return_lachesis_state()
-        # print("base validator")
-        # print("lachesis_state:", self.lachesis_state)
-        # print()
+    def run_lachesis(self, input_filename, output_filename, create_graph=False):
+        event_list = parse_data(input_filename)
+        validators, validator_weights = filter_validators_and_weights(event_list)
 
-    def return_lachesis_state(self):
-        return {
-            "frame": self.frame,
-            "block": self.block,
-            "root_set_validators": self.root_set_validators,
-            "root_set_nodes": self.root_set_nodes,
-            "frame_to_decide": self.frame_to_decide,
-            "cheater_list": self.cheater_list,
-            "time": self.time,
-            "atropos_roots": self.atropos_roots,
-        }
+        self.initialize_validators(validators, validator_weights)
+        self.process_events(event_list)
+
+        if create_graph:
+            self.graph_results(output_filename)
 
 
 if __name__ == "__main__":
-    lachesis_instance = Lachesis()
-    lachesis_instance.run_lachesis(
-        "../inputs/graphs_with_cheaters/graph_43.txt", "result.pdf", True
-    )
-
-    lachesis_multiinstance = LachesisMultiInstance()
-    lachesis_multiinstance.run_lachesis_multi_instance(
-        "../inputs/graphs_with_cheaters/graph_43.txt", "result_multiinstance.pdf", True
+    # lachesis_state = Lachesis()
+    # lachesis_state.run_lachesis("../inputs/graphs/graph_53.txt", "./result.pdf")
+    lachesis_multi_instance = LachesisMultiInstance()
+    lachesis_multi_instance.run_lachesis_multiinstance(
+        "../inputs/graphs/graph_1.txt", "./"
     )
