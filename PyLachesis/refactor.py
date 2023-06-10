@@ -97,10 +97,49 @@ class Lachesis:
         self.decided_roots = {}
         self.block = 1
         self.frame_to_decide = 1
+        # Event request queue for each Lachesis instance
+        self.request_queue = deque()
+        # Event process queue for each Lachesis instance
+        self.process_queue = {}
 
     def initialize_validators(self, validators, validator_weights):
         self.validators = validators
         self.validator_weights = validator_weights
+
+    def defer_event(self, event, instances):
+        self.process_queue[event.uuid] = event
+        # For all parents of the event
+        for parent_uuid in event.parents:
+            # If parent event is not already processed and not in process queue
+            if (
+                parent_uuid not in self.process_queue
+                and parent_uuid not in self.uuid_event_dict
+            ):
+                # Request for parent event from the creator validator's Lachesis instance
+                parent_creator_instance = instances[event.validator]
+                parent_creator_instance.request_queue.append(
+                    (self.validator, parent_uuid)
+                )
+
+    def process_request_queue(self, instances):
+        while self.request_queue:
+            # For each requested event
+            requestor_id, requested_uuid = self.request_queue.popleft()
+            requestor_instance = instances[requestor_id]
+            # If the event is already processed by the current instance
+            if requested_uuid in self.uuid_event_dict:
+                requested_event = self.uuid_event_dict[requested_uuid]
+                # Add the event to the requestor's process queue
+                requestor_instance.process_queue[requested_uuid] = requested_event
+                # Request its parents recursively by adding them to request queue
+                for parent_uuid in requested_event.parents:
+                    if parent_uuid not in requestor_instance.uuid_event_dict:
+                        self.request_queue.append((requestor_id, parent_uuid))
+
+    def process_deferred_events(self):
+        if self.process_queue:
+            self.process_events(list(self.process_queue.values()))
+            self.process_queue.clear()
 
     def quorum(self, frame):
         if frame in self.quorum_cache:
@@ -511,23 +550,21 @@ class Lachesis:
         fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
         plt.close()
 
+    def run_lachesis(self, input_filename, output_filename, create_graph=False):
+        event_list = parse_data(input_filename)
+        validators, validator_weights = filter_validators_and_weights(event_list)
+
+        self.initialize_validators(validators, validator_weights)
+        self.process_events(event_list)
+
+        if create_graph:
+            self.graph_results(output_filename)
+
 
 if __name__ == "__main__":
-    event_list = parse_data("../inputs/cheaters/graph_81.txt")
+    event_list = parse_data("../inputs/graphs/graph_99.txt")
     validators, validator_weights = filter_validators_and_weights(event_list)
     lachesis = Lachesis()
     lachesis.initialize_validators(validators, validator_weights)
     lachesis.process_events(event_list)
     lachesis.graph_results("result.pdf")
-    print(lachesis.validator_weights)
-    # print(lachesis.events)
-    # print(lachesis.frame)
-    # print(lachesis.root_set_events)
-    # print(lachesis.graph_results("result.pdf"))
-    # print(lachesis.validator_cheater_list)
-    # print(lachesis.suspected_cheaters)
-    # print(lachesis.confirmed_cheaters)
-    # print(lachesis.highest_validator_timestamps)
-    print(lachesis.frame)
-    print(lachesis.block)
-    print(lachesis.atropos_roots)
