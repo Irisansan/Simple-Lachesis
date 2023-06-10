@@ -175,12 +175,24 @@ class LachesisMultiInstance:
             for instance in self.instances.values():
                 instance.process_deferred_events()
 
-    def run_lachesis_multiinstance(self, input_filename, output_folder):
+    def run_lachesis_multiinstance(
+        self, input_filename, output_folder, graph_results=False
+    ):
         self.file_path = input_filename
+        self.graph_results = graph_results
         self.process()
 
         reference = Lachesis()
-        reference.run_lachesis(input_filename, "./result.pdf")
+        reference.run_lachesis(
+            input_filename, "./result.pdf", graph_results=graph_results
+        )
+
+        if self.graph_results:
+            for validator, instance in self.instances.items():
+                output_filename = os.path.join(
+                    output_folder, f"validator_{validator}_result.pdf"
+                )
+                instance.graph_results(output_filename)
 
         for instance in self.instances.values():
             # Numeric properties
@@ -225,13 +237,6 @@ class LachesisMultiInstance:
                 assert (
                     instance.quorum_cache[key] == reference.quorum_cache[key]
                 ), f"Quorum cache value for {key} in instance is greater than reference"
-
-        if self.graph_results:
-            for validator, instance in self.instances.items():
-                output_filename = os.path.join(
-                    output_folder, f"validator_{validator}_result.pdf"
-                )
-                instance.graph_results(output_filename)
 
 
 class Lachesis:
@@ -286,7 +291,15 @@ class Lachesis:
             requestor_id, requested_uuid = self.request_queue.popleft()
             requestor_instance = instances[requestor_id]
             requested_event = self.uuid_event_dict[requested_uuid]
-            requestor_instance.process_queue[requested_uuid] = requested_event
+            cleared_event = Event(
+                requested_event.validator,
+                requested_event.timestamp,
+                requested_event.sequence,
+                requested_event.weight,
+                requested_event.uuid,
+            )
+            cleared_event.parents = requested_event.parents
+            requestor_instance.process_queue[requested_uuid] = cleared_event
             for parent_uuid in requested_event.parents:
                 if (
                     parent_uuid not in requestor_instance.uuid_event_dict
@@ -365,7 +378,7 @@ class Lachesis:
         if self.is_root(event):
             event.root = True
             if event.sequence == 1:
-                event.frame = self.frame
+                event.frame = 1
             else:
                 event.frame += 1
             if self.frame < event.frame:
@@ -694,14 +707,14 @@ class Lachesis:
         fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
         plt.close()
 
-    def run_lachesis(self, input_filename, output_filename, create_graph=False):
+    def run_lachesis(self, input_filename, output_filename, graph_results=False):
         event_list = parse_data(input_filename)
         validators, validator_weights = filter_validators_and_weights(event_list)
 
         self.initialize_validators(validators, validator_weights)
         self.process_events(event_list)
 
-        if create_graph:
+        if graph_results:
             self.graph_results(output_filename)
 
 
@@ -710,5 +723,5 @@ if __name__ == "__main__":
     # lachesis_state.run_lachesis("../inputs/graphs/graph_53.txt", "./result.pdf")
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/graphs/graph_1.txt", "./"
+        "../inputs/graphs/graph_13.txt", "./", True
     )
