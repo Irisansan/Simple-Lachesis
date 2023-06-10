@@ -11,7 +11,6 @@ def parse_data(file_path):
 
     with open(file_path, "r") as file:
         for line in file:
-            # Parse line
             unique_id_match = re.search(r"unique_id:\s([a-z0-9-]*)", line)
             label_match = re.search(r"label:\s\(([\w\s]+),(\d+),(\d+),(\d+)\)", line)
             if not (unique_id_match and label_match):
@@ -20,13 +19,11 @@ def parse_data(file_path):
             unique_id = unique_id_match.group(1)
             validator, timestamp, sequence, weight = label_match.groups()
 
-            # Create event and add to dictionary
             event = Event(
                 validator, int(timestamp), int(sequence), int(weight), unique_id
             )
             event_list.append(event)
 
-            # Add parents if they exist
             child_unique_ids = re.findall(r"child_unique_id:\s([a-z0-9-]*)", line)
             for child_unique_id in child_unique_ids:
                 event.add_parent(child_unique_id)
@@ -71,9 +68,60 @@ class Event:
         return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed}, {self.lowest_observing})"
 
 
+class LachesisMultiInstance:
+    def __init__(self, file_path):
+        self.file_path = file_path
+        self.instances = {}
+
+    def parse_and_initialize(self):
+        event_list = parse_data(self.file_path)
+        validators, validator_weights = filter_validators_and_weights(event_list)
+
+        uuid_validator_map = {}
+        for event in event_list:
+            uuid_validator_map[event.uuid] = event.validator
+
+        for validator in validators:
+            lachesis_instance = Lachesis(validator)
+            lachesis_instance.initialize_validators(validators, validator_weights)
+            self.instances[validator] = lachesis_instance
+
+        return event_list, uuid_validator_map
+
+    def process(self):
+        (
+            event_list,
+            uuid_validator_map,
+        ) = self.parse_and_initialize()
+        timestamp_event_dict = {}
+
+        for event in event_list:
+            if event.timestamp not in timestamp_event_dict:
+                timestamp_event_dict[event.timestamp] = []
+            timestamp_event_dict[event.timestamp].append(event)
+
+        max_timestamp = max(timestamp_event_dict.keys())
+        min_timestamp = min(timestamp_event_dict.keys())
+
+        for timestamp in range(min_timestamp, max_timestamp + 1):
+            current_timestamp_events = timestamp_event_dict.get(timestamp, [])
+            for event in current_timestamp_events:
+                instance = self.instances[event.validator]
+                instance.defer_event(event, self.instances, uuid_validator_map)
+
+            for instance in self.instances.values():
+                instance.process_request_queue(self.instances)
+
+            for instance in self.instances.values():
+                instance.process_deferred_events()
+
+            for instance in self.instances.values():
+                instance.time += 1
+
+
 class Lachesis:
-    def __init__(self):
-        self.validator = None
+    def __init__(self, validator=None):
+        self.validator = validator
         self.validators = []
         self.validator_weights = {}
         self.time = 1
@@ -97,44 +145,39 @@ class Lachesis:
         self.decided_roots = {}
         self.block = 1
         self.frame_to_decide = 1
-        # Event request queue for each Lachesis instance
         self.request_queue = deque()
-        # Event process queue for each Lachesis instance
         self.process_queue = {}
 
     def initialize_validators(self, validators, validator_weights):
         self.validators = validators
         self.validator_weights = validator_weights
 
-    def defer_event(self, event, instances):
+    def defer_event(self, event, instances, uuid_validator_map):
         self.process_queue[event.uuid] = event
-        # For all parents of the event
         for parent_uuid in event.parents:
-            # If parent event is not already processed and not in process queue
             if (
                 parent_uuid not in self.process_queue
                 and parent_uuid not in self.uuid_event_dict
             ):
-                # Request for parent event from the creator validator's Lachesis instance
-                parent_creator_instance = instances[event.validator]
-                parent_creator_instance.request_queue.append(
-                    (self.validator, parent_uuid)
-                )
+                parent_validator = uuid_validator_map.get(parent_uuid)
+                if parent_validator is not None:
+                    parent_creator_instance = instances[parent_validator]
+                    parent_creator_instance.request_queue.append(
+                        (self.validator, parent_uuid)
+                    )
 
     def process_request_queue(self, instances):
         while self.request_queue:
-            # For each requested event
             requestor_id, requested_uuid = self.request_queue.popleft()
             requestor_instance = instances[requestor_id]
-            # If the event is already processed by the current instance
-            if requested_uuid in self.uuid_event_dict:
-                requested_event = self.uuid_event_dict[requested_uuid]
-                # Add the event to the requestor's process queue
-                requestor_instance.process_queue[requested_uuid] = requested_event
-                # Request its parents recursively by adding them to request queue
-                for parent_uuid in requested_event.parents:
-                    if parent_uuid not in requestor_instance.uuid_event_dict:
-                        self.request_queue.append((requestor_id, parent_uuid))
+            requested_event = self.uuid_event_dict[requested_uuid]
+            requestor_instance.process_queue[requested_uuid] = requested_event
+            for parent_uuid in requested_event.parents:
+                if (
+                    parent_uuid not in requestor_instance.uuid_event_dict
+                    and parent_uuid not in requestor_instance.process_queue
+                ):
+                    self.request_queue.append((requestor_id, parent_uuid))
 
     def process_deferred_events(self):
         if self.process_queue:
@@ -159,7 +202,6 @@ class Lachesis:
 
             for validator, timestamp in self.highest_validator_timestamps.items():
                 if self.time - timestamp >= 20:
-                    # If the validator's highest timestamp is too old, ignore its weight
                     weights_total -= self.validator_weights[validator]
                     self.validator_weights[validator] = 0
 
@@ -217,7 +259,6 @@ class Lachesis:
                 self.root_set_events[event.frame].append(event)
             else:
                 self.root_set_events[event.frame] = [event]
-                # Immediately calculate the quorum for this new frame
                 self.quorum(event.frame)
             self.atropos_voting(event)
 
@@ -314,14 +355,12 @@ class Lachesis:
             parent_id = parents.popleft()
             parent = self.uuid_event_dict[parent_id]
 
-            # If the validator of the event is not in the parent vector, add it
             if event.validator not in parent.visited:
                 parent.visited[event.validator] = {
                     "uuid": event.uuid,
                     "sequence": event.sequence,
                 }
 
-                # Add sequence numbers observed by the event's validator
                 if event.validator not in self.observed_sequences:
                     self.observed_sequences[event.validator] = {}
                 if parent.validator not in self.observed_sequences[event.validator]:
@@ -331,7 +370,6 @@ class Lachesis:
                     parent.sequence
                     in self.observed_sequences[event.validator][parent.validator]
                 ):
-                    # The event's validator has observed a fork by the parent validator
                     self.validator_cheater_list[event.validator].add(parent.validator)
                     self.suspected_cheaters.add(parent.validator)
                 else:
@@ -358,7 +396,6 @@ class Lachesis:
                 ):
                     event.highest_timestamps_observed[validator] = timestamp
 
-            # Update the Lachesis attribute
             for validator, timestamp in event.highest_timestamps_observed.items():
                 if (
                     validator not in self.highest_validator_timestamps
@@ -393,7 +430,6 @@ class Lachesis:
             if parent.validator in self.validator_cheater_list[event.validator]:
                 continue
 
-            # If the validator of the event is not in the parent vector, add it
             if event.validator not in parent.lowest_observing and (
                 parent.validator not in self.validator_cheater_list
                 or event.validator not in self.validator_cheater_list[event.validator]
@@ -406,20 +442,16 @@ class Lachesis:
                 parents.extend(parent.parents)
 
     def process_events(self, events):
-        # Group events by timestamp
         timestamp_event_dict = {}
         for event in events:
             if event.timestamp not in timestamp_event_dict:
                 timestamp_event_dict[event.timestamp] = []
             timestamp_event_dict[event.timestamp].append(event)
 
-        # Get the maximum timestamp
         max_timestamp = max(timestamp_event_dict.keys())
         min_timestamp = min(timestamp_event_dict.keys())
 
-        # Process events from timestamp 1 to max_timestamp
         for timestamp in range(min_timestamp, max_timestamp + 1):
-            # Retrieve, shuffle and process events with the current timestamp
             current_timestamp_events = timestamp_event_dict.get(timestamp, [])
             random.shuffle(current_timestamp_events)
 
@@ -428,7 +460,6 @@ class Lachesis:
                     self.validators.append(event.validator)
                     self.validator_weights[event.validator] = event.weight
                 elif event.validator not in self.confirmed_cheaters:
-                    # If the validator reappears, reinstate its weight
                     self.validator_weights[event.validator] = event.weight
 
                 self.detect_forks(event)
@@ -461,10 +492,9 @@ class Lachesis:
 
         timestamp_dag = nx.DiGraph()
 
-        # Add nodes and edges to graph
         for event in self.events:
             if event.validator in self.confirmed_cheaters:
-                continue  # Skip nodes from confirmed cheaters
+                continue
             validator = event.validator
             timestamp = event.timestamp
             sequence = event.sequence
@@ -483,14 +513,13 @@ class Lachesis:
             for parent_uuid in event.parents:
                 parent = self.uuid_event_dict[parent_uuid]
                 if parent.validator in self.confirmed_cheaters:
-                    continue  # Skip edges that lead to confirmed cheaters
+                    continue
                 parent_timestamp = parent.timestamp
                 timestamp_dag.add_edge(
                     (validator, timestamp),
                     (parent.validator, parent_timestamp),
                 )
 
-        # Create color map
         color_map = {}
         for node in timestamp_dag:
             frame = timestamp_dag.nodes[node]["frame"]
@@ -562,9 +591,11 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    event_list = parse_data("../inputs/graphs/graph_99.txt")
-    validators, validator_weights = filter_validators_and_weights(event_list)
-    lachesis = Lachesis()
-    lachesis.initialize_validators(validators, validator_weights)
-    lachesis.process_events(event_list)
-    lachesis.graph_results("result.pdf")
+    # event_list = parse_data("../inputs/graphs/graph_1.txt")
+    # validators, validator_weights = filter_validators_and_weights(event_list)
+    # lachesis = Lachesis()
+    # lachesis.initialize_validators(validators, validator_weights)
+    # lachesis.process_events(event_list)
+    # lachesis.graph_results("result.pdf")
+    lachesis_multi_instance = LachesisMultiInstance("../inputs/graphs/graph_1.txt")
+    lachesis_multi_instance.process()
