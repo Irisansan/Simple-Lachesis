@@ -1,9 +1,10 @@
+from collections import deque
+import os
+import re
 import random
 import networkx as nx
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
-from collections import deque
-import re
+import matplotlib.colors as mcolors
 
 
 def parse_data(file_path):
@@ -69,21 +70,28 @@ class Event:
 
 
 class LachesisMultiInstance:
-    def __init__(self, file_path):
-        self.file_path = file_path
+    def __init__(self, graph_results=True):
+        self.file_path = None
         self.instances = {}
+        self.graph_results = graph_results
+        self.validators = []
+        self.validator_weights = {}
 
     def parse_and_initialize(self):
         event_list = parse_data(self.file_path)
-        validators, validator_weights = filter_validators_and_weights(event_list)
+        self.validators, self.validator_weights = filter_validators_and_weights(
+            event_list
+        )
 
         uuid_validator_map = {}
         for event in event_list:
             uuid_validator_map[event.uuid] = event.validator
 
-        for validator in validators:
+        for validator in self.validators:
             lachesis_instance = Lachesis(validator)
-            lachesis_instance.initialize_validators(validators, validator_weights)
+            lachesis_instance.initialize_validators(
+                self.validators, self.validator_weights
+            )
             self.instances[validator] = lachesis_instance
 
         return event_list, uuid_validator_map
@@ -93,6 +101,7 @@ class LachesisMultiInstance:
             event_list,
             uuid_validator_map,
         ) = self.parse_and_initialize()
+
         timestamp_event_dict = {}
 
         for event in event_list:
@@ -106,6 +115,12 @@ class LachesisMultiInstance:
         for timestamp in range(min_timestamp, max_timestamp + 1):
             current_timestamp_events = timestamp_event_dict.get(timestamp, [])
             for event in current_timestamp_events:
+                if event.validator not in self.instances:
+                    lachesis_instance = Lachesis(event.validator)
+                    lachesis_instance.initialize_validators(
+                        self.validators, self.validator_weights
+                    )
+                    self.instances[event.validator] = lachesis_instance
                 instance = self.instances[event.validator]
                 instance.defer_event(event, self.instances, uuid_validator_map)
 
@@ -117,6 +132,17 @@ class LachesisMultiInstance:
 
             for instance in self.instances.values():
                 instance.time += 1
+
+    def run_lachesis_multiinstance(self, input_filename, output_folder):
+        self.file_path = input_filename
+        self.process()
+
+        if self.graph_results:
+            for validator, instance in self.instances.items():
+                output_filename = os.path.join(
+                    output_folder, f"validator_{validator}_result.pdf"
+                )
+                instance.graph_results(output_filename)
 
 
 class Lachesis:
@@ -579,7 +605,7 @@ class Lachesis:
         fig.savefig(output_filename, format="pdf", dpi=300, bbox_inches="tight")
         plt.close()
 
-    def run_lachesis(self, input_filename, output_filename, create_graph=False):
+    def run_lachesis(self, input_filename, output_filename, create_graph=True):
         event_list = parse_data(input_filename)
         validators, validator_weights = filter_validators_and_weights(event_list)
 
@@ -591,11 +617,9 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    # event_list = parse_data("../inputs/graphs/graph_1.txt")
-    # validators, validator_weights = filter_validators_and_weights(event_list)
-    # lachesis = Lachesis()
-    # lachesis.initialize_validators(validators, validator_weights)
-    # lachesis.process_events(event_list)
-    # lachesis.graph_results("result.pdf")
-    lachesis_multi_instance = LachesisMultiInstance("../inputs/graphs/graph_1.txt")
-    lachesis_multi_instance.process()
+    lachesis_state = Lachesis()
+    lachesis_state.run_lachesis("../inputs/graphs/graph_53.txt", "./result.pdf")
+    lachesis_multi_instance = LachesisMultiInstance()
+    lachesis_multi_instance.run_lachesis_multiinstance(
+        "../inputs/graphs/graph_53.txt", "./"
+    )
