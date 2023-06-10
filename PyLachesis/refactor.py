@@ -57,6 +57,7 @@ class Event:
         self.uuid = unique_id
         self.frame = None
         self.root = False
+        self.atropos = False
         self.highest_observed = {}
         self.lowest_observing = {}
         self.visited = {}
@@ -91,6 +92,11 @@ class Lachesis:
         self.suspected_cheaters = set()
         self.confirmed_cheaters = set()
         self.highest_validator_timestamps = {}
+        self.election_votes = {}
+        self.atropos_roots = {}
+        self.decided_roots = {}
+        self.block = 1
+        self.frame_to_decide = 1
 
     def initialize_validators(self, validators, validator_weights):
         self.validators = validators
@@ -174,6 +180,72 @@ class Lachesis:
                 self.root_set_events[event.frame] = [event]
                 # Immediately calculate the quorum for this new frame
                 self.quorum(event.frame)
+            self.atropos_voting(event)
+
+    def atropos_voting(self, new_root):
+        candidates = sorted(
+            self.root_set_events[self.frame_to_decide],
+            key=lambda event: (
+                event.timestamp,
+                event.validator,
+                event.sequence,
+                event.weight,
+            ),
+        )
+
+        for candidate in candidates:
+            if self.frame_to_decide not in self.election_votes:
+                self.election_votes[self.frame_to_decide] = {}
+
+            if (new_root.uuid, candidate.uuid) not in self.election_votes[
+                self.frame_to_decide
+            ]:
+                vote = None
+
+                if self.frame == self.frame_to_decide + 1:
+                    vote = {
+                        "decided": False,
+                        "yes": self.forkless_cause(new_root, candidate),
+                    }
+                elif self.frame >= self.frame_to_decide + 2:
+                    yes_votes = 0
+                    no_votes = 0
+
+                    for prev_root in sorted(
+                        self.root_set_events[self.frame - 1],
+                        key=lambda event: (
+                            event.timestamp,
+                            event.validator,
+                            event.sequence,
+                            event.weight,
+                        ),
+                    ):
+                        prev_vote = self.election_votes[self.frame_to_decide].get(
+                            (prev_root.uuid, candidate.uuid), {"yes": False}
+                        )
+                        if prev_vote["yes"]:
+                            yes_votes += self.validator_weights[prev_root.validator]
+                        else:
+                            no_votes += self.validator_weights[prev_root.validator]
+
+                    vote = {
+                        "decided": yes_votes >= self.quorum(self.frame)
+                        or no_votes >= self.quorum(self.frame),
+                        "yes": yes_votes > no_votes,
+                    }
+
+                if vote is not None:
+                    self.election_votes[self.frame_to_decide][
+                        (new_root.uuid, candidate.uuid)
+                    ] = vote
+
+                    if vote["decided"]:
+                        self.decided_roots[candidate.uuid] = vote
+                        if vote["yes"]:
+                            self.atropos_roots[self.frame_to_decide] = candidate.uuid
+                            candidate.atropos = True
+                            self.frame_to_decide += 1
+                            self.block += 1
 
     def forkless_cause(self, event_a, event_b):
         if event_a.validator in self.validator_cheater_list.get(
@@ -332,6 +404,14 @@ class Lachesis:
 
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "blue", "cyan", "purple"]
+        green = mcolors.to_rgb("green")
+        greens = [
+            tuple(g * 0.7 for g in green),
+            tuple(g * 0.8 for g in green),
+            tuple(g * 0.9 for g in green),
+            green,
+        ]
+        greens = [mcolors.to_hex(g) for g in greens]
 
         colors_rgb = [mcolors.to_rgb(color) for color in colors]
 
@@ -352,12 +432,14 @@ class Lachesis:
             frame = event.frame
             weight = self.validator_weights[validator]
             root = event.root
+            atropos = event.atropos
             timestamp_dag.add_node(
                 (validator, timestamp),
                 seq=sequence,
                 frame=frame,
                 weight=weight,
                 root=root,
+                atropos=atropos,
             )
             for parent_uuid in event.parents:
                 parent = self.uuid_event_dict[parent_uuid]
@@ -374,9 +456,12 @@ class Lachesis:
         for node in timestamp_dag:
             frame = timestamp_dag.nodes[node]["frame"]
             root = timestamp_dag.nodes[node]["root"]
+            atropos = timestamp_dag.nodes[node]["atropos"]
             color_index = frame % len(colors)
             color_map[node] = (
-                darker_colors[color_index] if root else colors[color_index]
+                greens[frame % len(greens)]
+                if atropos
+                else (darker_colors[color_index] if root else colors[color_index])
             )
 
         pos = {}
@@ -443,3 +528,6 @@ if __name__ == "__main__":
     # print(lachesis.suspected_cheaters)
     # print(lachesis.confirmed_cheaters)
     # print(lachesis.highest_validator_timestamps)
+    print(lachesis.frame)
+    print(lachesis.block)
+    print(lachesis.atropos_roots)
