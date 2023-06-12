@@ -1,4 +1,5 @@
 from collections import deque
+import random
 import os
 import re
 import random
@@ -67,7 +68,7 @@ class Event:
         self.parents.append(parent_uuid)
 
     def __repr__(self):
-        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed}, {self.lowest_observing})"
+        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed}, {self.lowest_observing}, {self.root})"
 
     def __eq__(self, other):
         if isinstance(other, Event):
@@ -194,9 +195,20 @@ class LachesisMultiInstance:
                 )
                 instance.graph_results(output_filename)
 
+        # print("\nreference base state:")
+        # print("instance:", reference.validator)
+        # print("cheater_list:", reference.validator_cheater_list)
+        # print("cheater times:", reference.validator_cheater_times)
+        # print("events:", reference.events)
+        # print("root set events:", reference.root_set_events)
+        # print()
+
         # for instance in self.instances.values():
         #     print("instance:", instance.validator)
         #     print("cheater_list:", instance.validator_cheater_list)
+        #     print("cheater times:", instance.validator_cheater_times)
+        #     print("events:", instance.events)
+        #     print("root set events:", instance.root_set_events)
         #     print()
 
         for instance in self.instances.values():
@@ -268,6 +280,7 @@ class Lachesis:
         self.frame_to_decide = 1
         self.observed_sequences = {}
         self.validator_cheater_list = {}
+        self.validator_cheater_times = {}
         self.decided_roots = []
         self.atropos_roots = []
         self.quorum_cache = {}
@@ -306,21 +319,32 @@ class Lachesis:
             requestor_id, requested_uuid = self.request_queue.popleft()
             requestor_instance = instances[requestor_id]
             requested_event = self.uuid_event_dict[requested_uuid]
-            cleared_event = Event(
+            cleared_requested_event = Event(
                 requested_event.validator,
                 requested_event.timestamp,
                 requested_event.sequence,
                 requested_event.weight,
                 requested_event.uuid,
             )
-            cleared_event.parents = requested_event.parents
-            requestor_instance.process_queue[requested_uuid] = cleared_event
-            for parent_uuid in requested_event.parents:
+            cleared_requested_event.parents = requested_event.parents
+            requestor_instance.process_queue[requested_uuid] = cleared_requested_event
+
+            for event_uuid, event in self.uuid_event_dict.items():
                 if (
-                    parent_uuid not in requestor_instance.uuid_event_dict
-                    and parent_uuid not in requestor_instance.process_queue
+                    event.timestamp < requested_event.timestamp
+                    and event_uuid not in requestor_instance.uuid_event_dict
+                    and event_uuid not in requestor_instance.process_queue
                 ):
-                    self.request_queue.append((requestor_id, parent_uuid))
+                    cleared_event = Event(
+                        event.validator,
+                        event.timestamp,
+                        event.sequence,
+                        event.weight,
+                        event.uuid,
+                    )
+                    cleared_event.parents = event.parents
+
+                    requestor_instance.process_queue[event_uuid] = cleared_event
 
     def process_deferred_events(self):
         if self.process_queue:
@@ -371,10 +395,18 @@ class Lachesis:
             return True
 
         direct_child = self.get_direct_child(event)
-        if direct_child is None:
-            return False
 
-        event.frame = direct_child.frame
+        event.frame = max(
+            max(
+                [
+                    e.frame
+                    for e in self.events
+                    if e.validator == event.validator and e.sequence < event.sequence
+                ]
+            ),
+            direct_child.frame,
+        )
+
         frame_roots = self.root_set_events.get(event.frame, [])
         if not frame_roots:
             return False
@@ -395,11 +427,22 @@ class Lachesis:
         #     print(event)
         #     print(self.validator_cheater_list)
 
-        # if event.validator == "D" and event.sequence == 3:
-        #     print(event)
-        #     print(frame_roots)
-        #     print(forkless_cause_weights)
-        #     print(self.validator_cheater_list)
+        if (
+            self.validator == "B"
+            and event.timestamp == 7
+            and event.validator == "C"
+            and event.sequence == 5
+        ):
+            print(event)
+            print()
+            print(frame_roots)
+            print()
+            print(forkless_cause_weights)
+            print()
+            print(self.validator_cheater_list)
+            print()
+            print(self.validator_cheater_times)
+            print(self.time)
 
         return forkless_cause_weights >= self.quorum(event.frame)
 
@@ -494,6 +537,8 @@ class Lachesis:
             event_b.validator
             in self.validator_cheater_list.get(event_a.validator, set())
             and event_a.validator != event_b.validator
+            and self.validator_cheater_times[event_a.validator][event_b.validator]
+            < event_a.timestamp
         ):
             return False
 
@@ -504,6 +549,24 @@ class Lachesis:
         for validator, sequence in a.items():
             if validator in b and b[validator]["sequence"] <= sequence:
                 yes += self.validator_weights[validator]
+
+        if (
+            self.validator == "B"
+            and event_a.validator == "C"
+            and event_a.timestamp == 7
+            and event_a.sequence == 5
+        ):
+            print("val:", event_b.validator)
+            print("root:", event_a)
+            print("event:", event_b)
+            print("quorum", self.quorum(event_b.frame))
+            print(event_a.highest_observed)
+            print(event_b.lowest_observing)
+            print()
+            print("validator weights:", self.validator_weights)
+            print(yes)
+            print(self.quorum(event_b.frame))
+            print("END")
 
         return yes >= self.quorum(event_b.frame)
 
@@ -533,6 +596,11 @@ class Lachesis:
                     in self.observed_sequences[event.validator][parent.validator]
                 ):
                     self.validator_cheater_list[event.validator].add(parent.validator)
+                    if event.validator not in self.validator_cheater_times:
+                        self.validator_cheater_times[event.validator] = {}
+                    self.validator_cheater_times[event.validator][
+                        parent.validator
+                    ] = event.timestamp
                     self.suspected_cheaters.add(parent.validator)
                 else:
                     self.observed_sequences[event.validator][parent.validator].add(
@@ -606,6 +674,8 @@ class Lachesis:
             if (
                 parent.validator in self.validator_cheater_list[event.validator]
                 and parent.validator != event.validator
+                and self.time
+                >= self.validator_cheater_times[event.validator][parent.validator]
             ):
                 continue
 
@@ -641,7 +711,8 @@ class Lachesis:
             self.time = timestamp
 
             current_timestamp_events = timestamp_event_dict.get(timestamp, [])
-            random.shuffle(current_timestamp_events)
+
+            current_timestamp_events.sort(key=lambda e: (-e.sequence))
 
             for event in current_timestamp_events:
                 if event.validator not in self.validators:
@@ -652,20 +723,14 @@ class Lachesis:
 
                 self.detect_forks(event)
                 self.set_highest_timestamps_observed(event)
-                # if event.validator == "D" and event.sequence == 3:
-                #     print("event before highest")
-                #     print(event)
                 self.set_highest_events_observed(event)
-                # if event.validator == "D" and event.sequence == 3:
-                #     print("event before highest")
-                #     print(event)
                 self.set_lowest_observing_events(event)
                 self.set_roots(event)
                 self.events.append(event)
                 self.uuid_event_dict[event.uuid] = event
 
     def graph_results(self, output_filename):
-        colors = ["orange", "yellow", "blue", "cyan", "purple"]
+        colors = ["orange", "yellow", "cyan", "blue", "purple"]
         green = mcolors.to_rgb("green")
         greens = [
             tuple(g * 0.7 for g in green),
@@ -787,5 +852,5 @@ if __name__ == "__main__":
     # lachesis_state.run_lachesis("../inputs/cheaters/graph_1.txt", "./result.pdf", True)
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters/graph_26.txt", "./", True
+        "../inputs/cheaters/graph_22.txt", "./", True
     )
