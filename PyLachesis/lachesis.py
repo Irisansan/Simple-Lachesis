@@ -194,26 +194,32 @@ class LachesisMultiInstance:
                 )
                 instance.graph_results(output_filename)
 
-        print("\nreference base state:")
-        print("instance:", reference.validator)
-        # print("events:", reference.events)
-        # print("root set events:", reference.root_set_events)
-        print("quorum cache:", reference.quorum_cache)
-        print("cheater_list:", reference.validator_cheater_list)
-        print("cheater times:", reference.validator_cheater_times)
-        print("confirmed cheaters:", reference.confirmed_cheaters)
-        print()
+        # print("\nreference base state:")
+        # print("instance:", reference.validator)
+        # # print("events:", reference.events)
+        # # print("root set events:", reference.root_set_events)
+        # print("quorum cache:", reference.quorum_cache)
+        # print("cheater_list:", dict(sorted(reference.validator_cheater_list.items())))
+        # print("cheater times:", dict(sorted(reference.validator_cheater_times.items())))
+        # print("confirmed cheaters:", reference.confirmed_cheaters)
+        # print("frame updates:", reference.frame_times)
+        # print()
 
-        for instance in self.instances.values():
-            # if instance.validator == "K":
-            print("instance:", instance.validator)
-            # print("events:", instance.events)
-            # print("root set events:", instance.root_set_events)
-            print("quorum cache:", instance.quorum_cache)
-            print("cheater_list:", instance.validator_cheater_list)
-            print("cheater times:", instance.validator_cheater_times)
-            print("confirmed cheaters:", instance.confirmed_cheaters)
-            print()
+        # for instance in self.instances.values():
+        #     # if instance.validator == "K":
+        #     print("instance:", instance.validator)
+        #     # print("events:", instance.events)
+        #     # print("root set events:", instance.root_set_events)
+        #     print("quorum cache:", instance.quorum_cache)
+        #     print(
+        #         "cheater_list:", dict(sorted(instance.validator_cheater_list.items()))
+        #     )
+        #     print(
+        #         "cheater times:", dict(sorted(instance.validator_cheater_times.items()))
+        #     )
+        #     print("confirmed cheaters:", instance.confirmed_cheaters)
+        #     print("frame updates:", instance.frame_times)
+        #     print()
 
         for instance in self.instances.values():
             # print("self.instance", instance.validator)
@@ -299,6 +305,7 @@ class Lachesis:
         self.frame_to_decide = 1
         self.request_queue = deque()
         self.process_queue = {}
+        self.frame_times = []
 
     def initialize_validators(self, validators, validator_weights):
         self.validators = validators
@@ -385,6 +392,12 @@ class Lachesis:
                 [self.validator_weights[v] for v in self.confirmed_cheaters]
             )
 
+            # if self.validator == "K":
+            #     print("state of K")
+            #     print(self.time)
+            #     print(self.validator_cheater_times)
+            #     print(self.events)
+
             for cheater in self.suspected_cheaters:
                 if cheater not in self.confirmed_cheaters:
                     cheater_observation = 0
@@ -393,6 +406,8 @@ class Lachesis:
                             cheater in cheaters
                             and validator != cheater
                             and validator not in self.confirmed_cheaters
+                            and self.validator_cheater_times[validator][cheater]
+                            <= self.time  # this line ensures that the cheater was observed at a time <= self.time
                         ):
                             cheater_observation += self.validator_weights[validator]
                     if (
@@ -494,6 +509,7 @@ class Lachesis:
                 self.root_set_events[event.frame].append(event)
             else:
                 self.root_set_events[event.frame] = [event]
+                self.frame_times.append(self.time)
                 self.quorum(event.frame)
             # self.atropos_voting(event)
 
