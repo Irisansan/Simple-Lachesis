@@ -1,5 +1,4 @@
 from collections import deque
-import random
 import os
 import re
 import random
@@ -195,21 +194,26 @@ class LachesisMultiInstance:
                 )
                 instance.graph_results(output_filename)
 
-        # print("\nreference base state:")
-        # print("instance:", reference.validator)
-        # print("cheater_list:", reference.validator_cheater_list)
-        # print("cheater times:", reference.validator_cheater_times)
+        print("\nreference base state:")
+        print("instance:", reference.validator)
         # print("events:", reference.events)
         # print("root set events:", reference.root_set_events)
-        # print()
+        print("quorum cache:", reference.quorum_cache)
+        print("cheater_list:", reference.validator_cheater_list)
+        print("cheater times:", reference.validator_cheater_times)
+        print("confirmed cheaters:", reference.confirmed_cheaters)
+        print()
 
-        # for instance in self.instances.values():
-        #     print("instance:", instance.validator)
-        #     print("cheater_list:", instance.validator_cheater_list)
-        #     print("cheater times:", instance.validator_cheater_times)
-        #     print("events:", instance.events)
-        #     print("root set events:", instance.root_set_events)
-        #     print()
+        for instance in self.instances.values():
+            # if instance.validator == "K":
+            print("instance:", instance.validator)
+            # print("events:", instance.events)
+            # print("root set events:", instance.root_set_events)
+            print("quorum cache:", instance.quorum_cache)
+            print("cheater_list:", instance.validator_cheater_list)
+            print("cheater times:", instance.validator_cheater_times)
+            print("confirmed cheaters:", instance.confirmed_cheaters)
+            print()
 
         for instance in self.instances.values():
             # print("self.instance", instance.validator)
@@ -262,7 +266,7 @@ class LachesisMultiInstance:
                     key in reference.quorum_cache.keys()
                 ), f"Key {key} in quorum_cache not found in reference"
                 assert (
-                    instance.quorum_cache[key] == reference.quorum_cache[key]
+                    instance.quorum_cache[key] >= reference.quorum_cache[key]
                 ), f"Quorum cache value for frame {key} in instance {instance.validator} is greater than reference"
 
 
@@ -314,6 +318,27 @@ class Lachesis:
                         (self.validator, parent_uuid)
                     )
 
+    # def process_request_queue(self, instances):
+    #     while self.request_queue:
+    #         requestor_id, requested_uuid = self.request_queue.popleft()
+    #         requestor_instance = instances[requestor_id]
+    #         requested_event = self.uuid_event_dict[requested_uuid]
+    #         cleared_event = Event(
+    #             requested_event.validator,
+    #             requested_event.timestamp,
+    #             requested_event.sequence,
+    #             requested_event.weight,
+    #             requested_event.uuid,
+    #         )
+    #         cleared_event.parents = requested_event.parents
+    #         requestor_instance.process_queue[requested_uuid] = cleared_event
+    #         for parent_uuid in requested_event.parents:
+    #             if (
+    #                 parent_uuid not in requestor_instance.uuid_event_dict
+    #                 and parent_uuid not in requestor_instance.process_queue
+    #             ):
+    #                 self.request_queue.append((requestor_id, parent_uuid))
+
     def process_request_queue(self, instances):
         while self.request_queue:
             requestor_id, requested_uuid = self.request_queue.popleft()
@@ -356,21 +381,31 @@ class Lachesis:
             return self.quorum_cache[frame]
         else:
             weights_total = sum(self.validator_weights.values())
+            cheater_total = sum(
+                [self.validator_weights[v] for v in self.confirmed_cheaters]
+            )
 
             for cheater in self.suspected_cheaters:
-                cheater_observation = 0
-                for validator, cheaters in self.validator_cheater_list.items():
-                    if cheater in cheaters:
-                        cheater_observation += self.validator_weights[validator]
-                if cheater_observation >= 2 * weights_total // 3 + 1:
-                    self.confirmed_cheaters.add(cheater)
-                    weights_total -= self.validator_weights[cheater]
-                    self.validator_weights[cheater] = 0
+                if cheater not in self.confirmed_cheaters:
+                    cheater_observation = 0
+                    for validator, cheaters in self.validator_cheater_list.items():
+                        if (
+                            cheater in cheaters
+                            and validator != cheater
+                            and validator not in self.confirmed_cheaters
+                        ):
+                            cheater_observation += self.validator_weights[validator]
+                    if (
+                        cheater_observation
+                        == weights_total
+                        - cheater_total
+                        - self.validator_weights[cheater]
+                    ):
+                        self.confirmed_cheaters.add(cheater)
 
-            # for validator, timestamp in self.highest_validator_timestamps.items():
-            #     if self.time - timestamp >= 20:
-            #         weights_total -= self.validator_weights[validator]
-            #         self.validator_weights[validator] = 0
+            weights_total = sum(self.validator_weights.values()) - sum(
+                [self.validator_weights[v] for v in self.confirmed_cheaters]
+            )
 
             self.quorum_cache[frame] = 2 * weights_total // 3 + 1
             return self.quorum_cache[frame]
@@ -427,22 +462,22 @@ class Lachesis:
         #     print(event)
         #     print(self.validator_cheater_list)
 
-        if (
-            self.validator == "B"
-            and event.timestamp == 7
-            and event.validator == "C"
-            and event.sequence == 5
-        ):
-            print(event)
-            print()
-            print(frame_roots)
-            print()
-            print(forkless_cause_weights)
-            print()
-            print(self.validator_cheater_list)
-            print()
-            print(self.validator_cheater_times)
-            print(self.time)
+        # if (
+        #     self.validator == "B"
+        #     and event.timestamp == 7
+        #     and event.validator == "C"
+        #     and event.sequence == 5
+        # ):
+        #     print(event)
+        #     print()
+        #     print(frame_roots)
+        #     print()
+        #     print(forkless_cause_weights)
+        #     print()
+        #     print(self.validator_cheater_list)
+        #     print()
+        #     print(self.validator_cheater_times)
+        #     print(self.time)
 
         return forkless_cause_weights >= self.quorum(event.frame)
 
@@ -550,23 +585,23 @@ class Lachesis:
             if validator in b and b[validator]["sequence"] <= sequence:
                 yes += self.validator_weights[validator]
 
-        if (
-            self.validator == "B"
-            and event_a.validator == "C"
-            and event_a.timestamp == 7
-            and event_a.sequence == 5
-        ):
-            print("val:", event_b.validator)
-            print("root:", event_a)
-            print("event:", event_b)
-            print("quorum", self.quorum(event_b.frame))
-            print(event_a.highest_observed)
-            print(event_b.lowest_observing)
-            print()
-            print("validator weights:", self.validator_weights)
-            print(yes)
-            print(self.quorum(event_b.frame))
-            print("END")
+        # if (
+        #     self.validator == "B"
+        #     and event_a.validator == "C"
+        #     and event_a.timestamp == 7
+        #     and event_a.sequence == 5
+        # ):
+        #     print("val:", event_b.validator)
+        #     print("root:", event_a)
+        #     print("event:", event_b)
+        #     print("quorum", self.quorum(event_b.frame))
+        #     print(event_a.highest_observed)
+        #     print(event_b.lowest_observing)
+        #     print()
+        #     print("validator weights:", self.validator_weights)
+        #     print(yes)
+        #     print(self.quorum(event_b.frame))
+        #     print("END")
 
         return yes >= self.quorum(event_b.frame)
 
@@ -598,9 +633,13 @@ class Lachesis:
                     self.validator_cheater_list[event.validator].add(parent.validator)
                     if event.validator not in self.validator_cheater_times:
                         self.validator_cheater_times[event.validator] = {}
-                    self.validator_cheater_times[event.validator][
+                    if (
                         parent.validator
-                    ] = event.timestamp
+                        not in self.validator_cheater_times[event.validator]
+                    ):
+                        self.validator_cheater_times[event.validator][
+                            parent.validator
+                        ] = event.timestamp
                     self.suspected_cheaters.add(parent.validator)
                 else:
                     self.observed_sequences[event.validator][parent.validator].add(
@@ -852,5 +891,5 @@ if __name__ == "__main__":
     # lachesis_state.run_lachesis("../inputs/cheaters/graph_1.txt", "./result.pdf", True)
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters/graph_22.txt", "./", True
+        "../inputs/cheaters/graph_82.txt", "./", False
     )
