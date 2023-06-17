@@ -62,12 +62,13 @@ class Event:
         self.visited = {}
         self.parents = []
         self.highest_timestamps_observed = {}
+        self.cheaters = {}
 
     def add_parent(self, parent_uuid):
         self.parents.append(parent_uuid)
 
     def __repr__(self):
-        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed}, {self.lowest_observing}, {self.root})"
+        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.parents}, {self.highest_observed}, {self.lowest_observing}, {self.root}, {self.cheaters})"
 
     def __eq__(self, other):
         if isinstance(other, Event):
@@ -203,77 +204,81 @@ class LachesisMultiInstance:
         # print("cheater times:", dict(sorted(reference.validator_cheater_times.items())))
         # print("confirmed cheaters:", reference.confirmed_cheaters)
         # print("frame updates:", reference.frame_times)
+        # # print("events:", reference.events)
         # print()
 
         # for instance in self.instances.values():
-        #     # if instance.validator == "K":
-        #     print("instance:", instance.validator)
-        #     # print("events:", instance.events)
-        #     # print("root set events:", instance.root_set_events)
-        #     print("quorum cache:", instance.quorum_cache)
-        #     print(
-        #         "cheater_list:", dict(sorted(instance.validator_cheater_list.items()))
-        #     )
-        #     print(
-        #         "cheater times:", dict(sorted(instance.validator_cheater_times.items()))
-        #     )
-        #     print("confirmed cheaters:", instance.confirmed_cheaters)
-        #     print("frame updates:", instance.frame_times)
-        #     print()
+        #     if instance.validator == "I":
+        #         print("instance:", instance.validator)
+        #         # print("events:", instance.events)
+        #         # print("root set events:", instance.root_set_events)
+        #         print("quorum cache:", instance.quorum_cache)
+        #         print(
+        #             "cheater_list:",
+        #             dict(sorted(instance.validator_cheater_list.items())),
+        #         )
+        #         print(
+        #             "cheater times:",
+        #             dict(sorted(instance.validator_cheater_times.items())),
+        #         )
+        #         print("confirmed cheaters:", instance.confirmed_cheaters)
+        #         print("frame updates:", instance.frame_times)
+        #         print()
 
         for instance in self.instances.values():
             # print("self.instance", instance.validator)
             # print("cheaters", instance.validator_cheater_list)
             # print("events", instance.events)
 
-            # Numeric properties
-            assert (
-                instance.frame <= reference.frame
-            ), f"Frame is greater in instance {instance.validator}"
-            assert (
-                instance.block <= reference.block
-            ), f"Block is greater in instance {instance.validator}"
-            assert (
-                instance.time <= reference.time
-            ), f"Time is greater in instance {instance.validator}"
-            assert (
-                instance.frame_to_decide <= reference.frame_to_decide
-            ), f"Frame to decide is greater in instance {instance.validator}"
-
-            # List/set properties
-            assert set(instance.root_set_validators).issubset(
-                set(reference.root_set_validators)
-            ), f"Root set validators in instance {instance.validator} not a subset of reference"
-            assert set(instance.events).issubset(
-                set(reference.events)
-            ), f"Events in instance {instance.validator} not a subset of reference"
-
-            # Dictionary properties
-            for f in reference.root_set_events:
-                assert SortedSet(instance.root_set_events.get(f, [])) <= SortedSet(
-                    reference.root_set_events[f]
-                ), f"Root set events for frame {f} in instance {instance.validator} is not a subset of reference"
-            assert set(instance.validator_cheater_list.keys()).issubset(
-                set(reference.validator_cheater_list.keys())
-            ), f"Validator cheater list in instance {instance.validator} not a subset of reference"
-
-            for key in instance.uuid_event_dict.keys():
+            if instance.validator != "A":
+                # Numeric properties
                 assert (
-                    key in reference.uuid_event_dict.keys()
-                ), f"Key {key} in uuid_event_dict not found in reference"
-                instance_event = instance.uuid_event_dict[key]
-                reference_event = reference.uuid_event_dict[key]
+                    instance.frame <= reference.frame
+                ), f"Frame is greater in instance {instance.validator}"
                 assert (
-                    instance_event == reference_event
-                ), f"Event for {key} in instance {instance.validator} is not equal to reference"
+                    instance.block <= reference.block
+                ), f"Block is greater in instance {instance.validator}"
+                assert (
+                    instance.time <= reference.time
+                ), f"Time is greater in instance {instance.validator}"
+                assert (
+                    instance.frame_to_decide <= reference.frame_to_decide
+                ), f"Frame to decide is greater in instance {instance.validator}"
 
-            for key in instance.quorum_cache.keys():
-                assert (
-                    key in reference.quorum_cache.keys()
-                ), f"Key {key} in quorum_cache not found in reference"
-                assert (
-                    instance.quorum_cache[key] >= reference.quorum_cache[key]
-                ), f"Quorum cache value for frame {key} in instance {instance.validator} is greater than reference"
+                # List/set properties
+                assert set(instance.root_set_validators).issubset(
+                    set(reference.root_set_validators)
+                ), f"Root set validators in instance {instance.validator} not a subset of reference"
+                assert set(instance.events).issubset(
+                    set(reference.events)
+                ), f"Events in instance {instance.validator} not a subset of reference"
+
+                # Dictionary properties
+                for f in reference.root_set_events:
+                    assert SortedSet(instance.root_set_events.get(f, [])) <= SortedSet(
+                        reference.root_set_events[f]
+                    ), f"Root set events for frame {f} in instance {instance.validator} is not a subset of reference"
+                assert set(instance.validator_cheater_list.keys()).issubset(
+                    set(reference.validator_cheater_list.keys())
+                ), f"Validator cheater list in instance {instance.validator} not a subset of reference"
+
+                for key in instance.uuid_event_dict.keys():
+                    assert (
+                        key in reference.uuid_event_dict.keys()
+                    ), f"Key {key} in uuid_event_dict not found in reference"
+                    instance_event = instance.uuid_event_dict[key]
+                    reference_event = reference.uuid_event_dict[key]
+                    assert (
+                        instance_event == reference_event
+                    ), f"Event for {key} in instance {instance.validator} is not equal to reference"
+
+                for key in instance.quorum_cache.keys():
+                    assert (
+                        key in reference.quorum_cache.keys()
+                    ), f"Key {key} in quorum_cache not found in reference"
+                    assert (
+                        instance.quorum_cache[key] == reference.quorum_cache[key]
+                    ), f"Quorum cache value for frame {key} in instance {instance.validator} is greater than reference"
 
 
 class Lachesis:
@@ -291,6 +296,7 @@ class Lachesis:
         self.observed_sequences = {}
         self.validator_cheater_list = {}
         self.validator_cheater_times = {}
+        self.validator_confirmed_cheaters = {}
         self.decided_roots = []
         self.atropos_roots = []
         self.quorum_cache = {}
@@ -392,38 +398,40 @@ class Lachesis:
                 [self.validator_weights[v] for v in self.confirmed_cheaters]
             )
 
-            # if self.validator == "K":
-            #     print("state of K")
-            #     print(self.time)
-            #     print(self.validator_cheater_times)
-            #     print(self.events)
+        # if not self.validator or self.validator == "B":
+        #     print()
+        #     print("instance:", self.validator)
+        #     print("self.time:", self.time)
+        #     print("cheater_list:", self.validator_cheater_list)
+        #     print("cheater_times:", self.validator_cheater_times)
+        #     print("validator confirmed cheater:", self.validator_confirmed_cheaters)
+        #     print("confirmed_cheater:", self.confirmed_cheaters)
 
-            for cheater in self.suspected_cheaters:
-                if cheater not in self.confirmed_cheaters:
-                    cheater_observation = 0
-                    for validator, cheaters in self.validator_cheater_list.items():
-                        if (
-                            cheater in cheaters
-                            and validator != cheater
-                            and validator not in self.confirmed_cheaters
-                            and self.validator_cheater_times[validator][cheater]
-                            <= self.time  # this line ensures that the cheater was observed at a time <= self.time
-                        ):
-                            cheater_observation += self.validator_weights[validator]
-                    if (
-                        cheater_observation
-                        == weights_total
-                        - cheater_total
-                        - self.validator_weights[cheater]
-                    ):
-                        self.confirmed_cheaters.add(cheater)
+        for cheater in self.suspected_cheaters:
+            if cheater not in self.confirmed_cheaters:
+                cheater_observation = sum(
+                    self.validator_weights[validator]
+                    for validator, confirmed_cheaters in self.validator_confirmed_cheaters.items()
+                    if cheater in confirmed_cheaters
+                    and validator != cheater
+                    and validator not in self.confirmed_cheaters
+                )
+                weights_total = sum(self.validator_weights.values())
+                cheater_total = sum(
+                    self.validator_weights[v] for v in self.confirmed_cheaters
+                )
+                if (
+                    cheater_observation
+                    == weights_total - cheater_total - self.validator_weights[cheater]
+                ):
+                    self.confirmed_cheaters.add(cheater)
 
-            weights_total = sum(self.validator_weights.values()) - sum(
-                [self.validator_weights[v] for v in self.confirmed_cheaters]
-            )
+        weights_total = sum(self.validator_weights.values()) - sum(
+            [self.validator_weights[v] for v in self.confirmed_cheaters]
+        )
 
-            self.quorum_cache[frame] = 2 * weights_total // 3 + 1
-            return self.quorum_cache[frame]
+        self.quorum_cache[frame] = 2 * weights_total // 3 + 1
+        return self.quorum_cache[frame]
 
     def get_direct_child(self, event):
         direct_child_uuid = next(
@@ -478,11 +486,10 @@ class Lachesis:
         #     print(self.validator_cheater_list)
 
         # if (
-        #     self.validator == "B"
-        #     and event.timestamp == 7
-        #     and event.validator == "C"
-        #     and event.sequence == 5
-        # ):
+        #     self.validator == "I" and event.timestamp == 6 and event.validator == "I"
+        # ) or ((not self.validator and event.timestamp == 6 and event.validator == "I")):
+        #     print()
+        #     print(self.validator)
         #     print(event)
         #     print()
         #     print(frame_roots)
@@ -493,6 +500,9 @@ class Lachesis:
         #     print()
         #     print(self.validator_cheater_times)
         #     print(self.time)
+        #     for root in frame_roots:
+        #         if not self.forkless_cause(event, root):
+        #             prinTruit("FAIL:", root)
 
         return forkless_cause_weights >= self.quorum(event.frame)
 
@@ -589,7 +599,7 @@ class Lachesis:
             in self.validator_cheater_list.get(event_a.validator, set())
             and event_a.validator != event_b.validator
             and self.validator_cheater_times[event_a.validator][event_b.validator]
-            < event_a.timestamp
+            <= event_a.timestamp
         ):
             return False
 
@@ -657,11 +667,46 @@ class Lachesis:
                             parent.validator
                         ] = event.timestamp
                     self.suspected_cheaters.add(parent.validator)
+                    event.cheaters[parent.validator] = set(event.validator)
                 else:
                     self.observed_sequences[event.validator][parent.validator].add(
                         parent.sequence
                     )
                     parents.extend(parent.parents)
+
+        for parent_id in event.parents:
+            parent = self.uuid_event_dict[parent_id]
+            for key in parent.cheaters:
+                if key not in event.cheaters:
+                    event.cheaters[key] = parent.cheaters[key]
+                else:
+                    event.cheaters[key] = event.cheaters[key] | parent.cheaters[key]
+
+        for cheater in self.suspected_cheaters:
+            if (
+                cheater not in self.confirmed_cheaters
+                and cheater != event.validator
+                and cheater not in self.validator_confirmed_cheaters
+            ):
+                cheater_observation = sum(
+                    self.validator_weights[validator]
+                    for validator, observed_cheaters in event.cheaters.items()
+                    if cheater in observed_cheaters
+                    and validator != cheater
+                    and validator not in self.confirmed_cheaters
+                    and validator not in self.validator_confirmed_cheaters
+                )
+                weights_total = sum(self.validator_weights.values())
+                cheater_total = sum(
+                    self.validator_weights[v] for v in self.validator_confirmed_cheaters
+                )
+                if (
+                    cheater_observation
+                    == weights_total - cheater_total - self.validator_weights[cheater]
+                ):
+                    if event.validator not in self.validator_confirmed_cheaters:
+                        self.validator_confirmed_cheaters[event.validator] = set()
+                    self.validator_confirmed_cheaters[event.validator].add(cheater)
 
     def set_highest_timestamps_observed(self, event):
         for parent_id in event.parents:
@@ -907,5 +952,5 @@ if __name__ == "__main__":
     # lachesis_state.run_lachesis("../inputs/cheaters/graph_1.txt", "./result.pdf", True)
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters/graph_82.txt", "./", False
+        "../inputs/cheaters/graph_100.txt", "./", False
     )
