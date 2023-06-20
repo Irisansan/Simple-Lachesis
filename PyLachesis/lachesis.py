@@ -209,7 +209,7 @@ class LachesisMultiInstance:
         # print()
 
         # for instance in self.instances.values():
-        #     if instance.validator == "H":
+        #     if instance.validator == "E":
         #         print("instance:", instance.validator)
         #         # print("events:", instance.events)
         #         # print("root set events:", instance.root_set_events)
@@ -414,7 +414,6 @@ class Lachesis:
                     self.validator_weights[validator]
                     for validator, confirmed_cheaters in self.validator_confirmed_cheaters.items()
                     if cheater in confirmed_cheaters
-                    and validator != cheater
                     and validator not in self.confirmed_cheaters
                 )
                 weights_total = sum(self.validator_weights.values())
@@ -487,9 +486,9 @@ class Lachesis:
         #     print(self.validator_cheater_list)
 
         # if (
-        #     self.validator == "H" and event.timestamp == 19 and event.validator == "E"
+        #     self.validator == "E" and event.timestamp == 30 and event.validator == "B"
         # ) or (
-        #     (not self.validator and event.timestamp == 19 and event.validator == "E")
+        #     (not self.validator and event.timestamp == 30 and event.validator == "B")
         # ):
         #     print()
         #     print("is_root E, 19")
@@ -595,7 +594,6 @@ class Lachesis:
         if (
             event_b.validator
             in self.validator_cheater_list.get(event_a.validator, set())
-            and event_a.validator != event_b.validator
             and self.validator_cheater_times[event_a.validator][event_b.validator]
             <= event_a.timestamp
         ):
@@ -703,7 +701,6 @@ class Lachesis:
                     self.validator_weights[validator]
                     for validator, observed_cheaters in event.cheaters.items()
                     if cheater in observed_cheaters
-                    and validator != cheater
                     and validator not in self.confirmed_cheaters
                     and validator not in self.validator_confirmed_cheaters
                 )
@@ -958,5 +955,5 @@ if __name__ == "__main__":
     # lachesis_state.run_lachesis("../inputs/cheaters/graph_1.txt", "./result.pdf", True)
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters/graph_59.txt", "./", True
+        "../inputs/cheaters/graph_59.txt", "./", False
     )
