@@ -209,7 +209,7 @@ class LachesisMultiInstance:
         # print()
 
         # for instance in self.instances.values():
-        #     if instance.validator == "C":
+        #     if instance.validator == "F":
         #         print("instance:", instance.validator)
         #         # print("events:", instance.events)
         #         # print("root set events:", instance.root_set_events)
@@ -399,7 +399,7 @@ class Lachesis:
                 [self.validator_weights[v] for v in self.confirmed_cheaters]
             )
 
-        # if not self.validator or self.validator == "B":
+        # if not self.validator or self.validator == "F":
         #     print()
         #     print("instance:", self.validator)
         #     print("self.time:", self.time)
@@ -486,23 +486,23 @@ class Lachesis:
         #     print(self.validator_cheater_list)
 
         # if (
-        #     self.validator == "C" and event.timestamp == 5 and event.validator == "H"
-        # ) or ((not self.validator and event.timestamp == 5 and event.validator == "H")):
-        #     print()
-        #     print("is_root H, 5")
-        #     print("validator:", self.validator)
-        #     print("event info:", event)
-        #     print("frame roots:", frame_roots)
-        #     print("forkless cause weights:", forkless_cause_weights)
-        #     print("validator cheater list:", self.validator_cheater_list)
-        #     print("validator cheater times:", self.validator_cheater_times)
-        # print("all events:")
-        # print()
-        # print(self.events)
-        # print("self.time:", self.time)
-        # for root in frame_roots:
-        #     if not self.forkless_cause(event, root):
-        #         print("FAIL:", root)
+        #     self.validator == "F" and event.timestamp == 9 and event.validator == "F"
+        # ) or ((not self.validator and event.timestamp == 9 and event.validator == "F")):
+        #     # print()
+        #     # print("is_root F")
+        #     # print("validator:", self.validator)
+        #     # print("event info:", event)
+        #     # print("frame roots:", frame_roots)
+        #     # print("forkless cause weights:", forkless_cause_weights)
+        #     # print("validator cheater list:", self.validator_cheater_list)
+        #     # print("validator cheater times:", self.validator_cheater_times)
+        #     # print("all events:")
+        #     # print()
+        #     # print(self.events)
+        #     # print("self.time:", self.time)
+        #     for root in frame_roots:
+        #         if not self.forkless_cause(event, root):
+        #             print("FAIL:", root)
 
         return forkless_cause_weights >= self.quorum(event.frame)
 
@@ -747,6 +747,12 @@ class Lachesis:
                 parent.validator not in event.highest_observed
                 or parent.sequence
                 > event.highest_observed[parent.validator]["sequence"]
+                or (
+                    parent.validator in event.highest_observed
+                    and parent.sequence
+                    == event.highest_observed[parent.validator]["sequence"]
+                    and parent.uuid < event.highest_observed[parent.validator]["uuid"]
+                )
             ):
                 event.highest_observed[parent.validator] = {
                     "uuid": parent.uuid,
@@ -758,6 +764,12 @@ class Lachesis:
                     validator not in event.highest_observed
                     or observed["sequence"]
                     > event.highest_observed[validator]["sequence"]
+                    or (
+                        validator in event.highest_observed
+                        and observed["sequence"]
+                        == event.highest_observed[validator]["sequence"]
+                        and parent.uuid < event.highest_observed[validator]["uuid"]
+                    )
                 ):
                     event.highest_observed[validator] = observed.copy()
 
@@ -783,6 +795,16 @@ class Lachesis:
             # ):
             #     continue
 
+            # if (
+            #     self.validator == "F"
+            #     and event.validator == "B"
+            #     and parent.validator == "A"
+            #     and parent.timestamp == 1
+            # ):
+            #     print("LOWEST")
+            #     print("parent:", parent)
+            #     print("event:", event)
+
             if event.validator not in parent.lowest_observing or (
                 parent.lowest_observing[event.validator]["sequence"] > event.sequence
                 and self.uuid_event_dict[
@@ -803,6 +825,14 @@ class Lachesis:
                     "uuid": event.uuid,
                     "sequence": event.sequence,
                 }
+
+                if (
+                    event.validator in self.validator_cheater_list
+                    and parent.validator in self.validator_cheater_list[event.validator]
+                    and self.time
+                    >= self.validator_cheater_times[event.validator][parent.validator]
+                ):
+                    continue
 
                 parents.extend(parent.parents)
 
