@@ -370,7 +370,13 @@ class Lachesis:
 
             for event_uuid, event in self.uuid_event_dict.items():
                 if (
-                    event.timestamp < requested_event.timestamp
+                    (
+                        event.timestamp < requested_event.timestamp
+                        or (
+                            event.timestamp == requested_event.timestamp
+                            and self.validator == requested_event.validator
+                        )
+                    )
                     and event_uuid not in requestor_instance.uuid_event_dict
                     and event_uuid not in requestor_instance.process_queue
                 ):
@@ -998,5 +1004,5 @@ if __name__ == "__main__":
     # lachesis_state.run_lachesis("../inputs/cheaters/graph_1.txt", "./result.pdf", True)
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters2/graph_68.txt", "./", False
+        "../inputs/cheaters_expanded/graph_800.txt", "./", True
     )
