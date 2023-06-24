@@ -902,7 +902,7 @@ class Lachesis:
         timestamp_dag = nx.DiGraph()
 
         for event in self.events:
-            if event.validator in self.confirmed_cheaters:
+            if event.validator in self.suspected_cheaters:
                 continue
             validator = event.validator
             timestamp = event.timestamp
@@ -921,7 +921,7 @@ class Lachesis:
             )
             for parent_uuid in event.parents:
                 parent = self.uuid_event_dict[parent_uuid]
-                if parent.validator in self.confirmed_cheaters:
+                if parent.validator in self.suspected_cheaters:
                     continue
                 parent_timestamp = parent.timestamp
                 timestamp_dag.add_edge(
@@ -1004,5 +1004,5 @@ if __name__ == "__main__":
     # lachesis_state.run_lachesis("../inputs/cheaters/graph_1.txt", "./result.pdf", True)
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters_expanded/graph_800.txt", "./", True
+        "../inputs/cheaters_expanded/graph_1.txt", "./", True
     )
