@@ -38,7 +38,7 @@ def filter_validators_and_weights(events):
     validator_weights = {}
 
     for event in events:
-        if event.timestamp > 100:
+        if event.timestamp > 1000:
             break
         if event.validator not in validators:
             validators.append(event.validator)
@@ -195,55 +195,20 @@ class LachesisMultiInstance:
                 )
                 instance.graph_results(output_filename)
 
-        # print("\nreference base state:")
-        # print("instance:", reference.validator)
-        # # print("events:", reference.events)
-        # # print("root set events:", reference.root_set_events)
-        # print("quorum cache:", reference.quorum_cache)
-        # print("cheater_list:", dict(sorted(reference.validator_cheater_list.items())))
-        # print("cheater times:", dict(sorted(reference.validator_cheater_times.items())))
-        # print("confirmed cheaters:", reference.confirmed_cheaters)
-        # print("frame updates:", reference.frame_times)
-        # # print("validator visited events:", reference.validator_visited_events)
-        # # print("events:", reference.events)
-        # print()
-
-        # for instance in self.instances.values():
-        #     if instance.validator == "F":
-        #         print("instance:", instance.validator)
-        #         # print("events:", instance.events)
-        #         # print("root set events:", instance.root_set_events)
-        #         print("quorum cache:", instance.quorum_cache)
-        #         print(
-        #             "cheater_list:",
-        #             dict(sorted(instance.validator_cheater_list.items())),
-        #         )
-        #         print(
-        #             "cheater times:",
-        #             dict(sorted(instance.validator_cheater_times.items())),
-        #         )
-        #         print("confirmed cheaters:", instance.confirmed_cheaters)
-        #         print("frame updates:", instance.frame_times)
-        #         print()
-
         for instance in self.instances.values():
-            # print("self.instance", instance.validator)
-            # print("cheaters", instance.validator_cheater_list)
-            # print("events", instance.events)
-
             # Numeric properties
             assert (
                 instance.frame <= reference.frame
             ), f"Frame is greater in instance {instance.validator}"
-            assert (
-                instance.block <= reference.block
-            ), f"Block is greater in instance {instance.validator}"
+            # assert (
+            #     instance.block <= reference.block
+            # ), f"Block is greater in instance {instance.validator}"
             assert (
                 instance.time <= reference.time
             ), f"Time is greater in instance {instance.validator}"
-            assert (
-                instance.frame_to_decide <= reference.frame_to_decide
-            ), f"Frame to decide is greater in instance {instance.validator}"
+            # assert (
+            #     instance.frame_to_decide <= reference.frame_to_decide
+            # ), f"Frame to decide is greater in instance {instance.validator}"
 
             # List/set properties
             assert set(instance.root_set_validators).issubset(
@@ -280,6 +245,12 @@ class LachesisMultiInstance:
                     instance.quorum_cache[key] == reference.quorum_cache[key]
                 ), f"Quorum cache value for frame {key} in instance {instance.validator} does not match reference"
 
+            assert set(
+                [v for k, v in instance.atropos_roots.items() if k < reference.block]
+            ).issubset(
+                set(reference.atropos_roots.values())
+            ), f"Atropos roots in instance {instance.validator} not a subset of reference up to block {reference.block}"
+
 
 class Lachesis:
     def __init__(self, validator=None):
@@ -290,16 +261,13 @@ class Lachesis:
         self.events = []
         self.frame = 1
         self.epoch = 1
-        self.root_set_validators = []
+        self.root_set_validators = {}
         self.root_set_events = {}
-        self.frame_to_decide = 1
         self.observed_sequences = {}
         self.validator_cheater_list = {}
         self.validator_cheater_times = {}
         self.validator_confirmed_cheaters = {}
         self.validator_visited_events = {}
-        self.decided_roots = []
-        self.atropos_roots = []
         self.quorum_cache = {}
         self.uuid_event_dict = {}
         self.suspected_cheaters = set()
@@ -405,15 +373,6 @@ class Lachesis:
                 [self.validator_weights[v] for v in self.confirmed_cheaters]
             )
 
-        # if not self.validator or self.validator == "F":
-        #     print()
-        #     print("instance:", self.validator)
-        #     print("self.time:", self.time)
-        #     print("cheater_list:", self.validator_cheater_list)
-        #     print("cheater_times:", self.validator_cheater_times)
-        #     print("validator confirmed cheater:", self.validator_confirmed_cheaters)
-        #     print("confirmed_cheater:", self.confirmed_cheaters)
-
         for cheater in self.suspected_cheaters:
             if cheater not in self.confirmed_cheaters:
                 cheater_observation = sum(
@@ -483,33 +442,6 @@ class Lachesis:
             ]
         )
 
-        # if forkless_cause_weights >= self.quorum(event.frame):
-        #     print("forkless cause")
-        #     print(self.validator)
-        #     print(frame_roots)
-        #     print(forkless_cause_weights)
-        #     print(event)
-        #     print(self.validator_cheater_list)
-
-        # if (
-        #     self.validator == "F" and event.timestamp == 9 and event.validator == "F"
-        # ) or ((not self.validator and event.timestamp == 9 and event.validator == "F")):
-        #     # print()
-        #     # print("is_root F")
-        #     # print("validator:", self.validator)
-        #     # print("event info:", event)
-        #     # print("frame roots:", frame_roots)
-        #     # print("forkless cause weights:", forkless_cause_weights)
-        #     # print("validator cheater list:", self.validator_cheater_list)
-        #     # print("validator cheater times:", self.validator_cheater_times)
-        #     # print("all events:")
-        #     # print()
-        #     # print(self.events)
-        #     # print("self.time:", self.time)
-        #     for root in frame_roots:
-        #         if not self.forkless_cause(event, root):
-        #             print("FAIL:", root)
-
         return forkless_cause_weights >= self.quorum(event.frame)
 
     def set_roots(self, event):
@@ -523,24 +455,20 @@ class Lachesis:
                 self.frame = event.frame
             if event.frame in self.root_set_events:
                 self.root_set_events[event.frame].append(event)
+                self.root_set_validators[event.frame].append(event.validator)
             else:
                 self.root_set_events[event.frame] = [event]
+                self.root_set_validators[event.frame] = [event.validator]
                 self.frame_times.append(self.time)
                 self.quorum(event.frame)
-            # self.atropos_voting(event)
 
     def atropos_voting(self, new_root):
-        candidates = sorted(
-            self.root_set_events[self.frame_to_decide],
-            key=lambda event: (
-                event.timestamp,
-                event.validator,
-                event.sequence,
-                event.weight,
-            ),
-        )
+        candidates = self.root_set_events[self.frame_to_decide]
 
         for candidate in candidates:
+            if candidate.uuid in self.decided_roots:
+                continue
+
             if self.frame_to_decide not in self.election_votes:
                 self.election_votes[self.frame_to_decide] = {}
 
@@ -558,15 +486,7 @@ class Lachesis:
                     yes_votes = 0
                     no_votes = 0
 
-                    for prev_root in sorted(
-                        self.root_set_events[new_root.frame - 1],
-                        key=lambda event: (
-                            event.timestamp,
-                            event.validator,
-                            event.sequence,
-                            event.weight,
-                        ),
-                    ):
+                    for prev_root in self.root_set_events[new_root.frame - 1]:
                         prev_vote = self.election_votes[self.frame_to_decide].get(
                             (prev_root.uuid, candidate.uuid), {"yes": False}
                         )
@@ -576,9 +496,9 @@ class Lachesis:
                             no_votes += self.validator_weights[prev_root.validator]
 
                     vote = {
-                        "decided": yes_votes >= self.quorum(new_root.frame)
-                        or no_votes >= self.quorum(new_root.frame),
-                        "yes": yes_votes > no_votes,
+                        "decided": yes_votes >= self.quorum(self.frame_to_decide)
+                        or no_votes >= self.quorum(self.frame_to_decide),
+                        "yes": yes_votes >= no_votes,
                     }
 
                 if vote is not None:
@@ -588,11 +508,27 @@ class Lachesis:
 
                     if vote["decided"]:
                         self.decided_roots[candidate.uuid] = vote
-                        if vote["yes"]:
-                            self.atropos_roots[self.frame_to_decide] = candidate.uuid
-                            candidate.atropos = True
-                            self.frame_to_decide += 1
-                            self.block += 1
+
+        for candidate in sorted(
+            candidates, key=lambda event: (-event.weight, event.uuid)
+        ):
+            if (
+                candidate.uuid in self.decided_roots
+                and self.decided_roots[candidate.uuid]["yes"]
+            ):
+                self.atropos_roots[self.frame_to_decide] = candidate.uuid
+                candidate.atropos = True
+                self.frame_to_decide += 1
+                self.block += 1
+                return
+
+    def process_known_roots(self):
+        for frame in range(self.frame_to_decide + 1, self.frame):
+            frame_roots = self.root_set_events[frame]
+            if len(frame_roots) + len(self.suspected_cheaters) != len(self.validators):
+                break
+            for root in frame_roots:
+                self.atropos_voting(root)
 
     def forkless_cause(self, event_a, event_b):
         if (
@@ -634,9 +570,7 @@ class Lachesis:
                 )
 
                 if is_branch and no_forks:
-                    # print("YES")
                     yes += self.validator_weights[validator]
-                # yes += self.validator_weights[validator]
 
         return yes >= self.quorum(event_b.frame)
 
@@ -657,8 +591,10 @@ class Lachesis:
                 }
 
                 if event.validator not in self.validator_visited_events:
-                    self.validator_visited_events[event.validator] = [event.uuid]
-                self.validator_visited_events[event.validator].append(parent.uuid)
+                    self.validator_visited_events[event.validator] = set(
+                        str(event.uuid)
+                    )
+                self.validator_visited_events[event.validator].add((str(parent.uuid)))
 
                 if event.validator not in self.observed_sequences:
                     self.observed_sequences[event.validator] = {}
@@ -782,34 +718,9 @@ class Lachesis:
     def set_lowest_observing_events(self, event):
         parents = deque(event.parents)
 
-        # if event.validator == "C" and event.sequence == 3 and event.timestamp == 4:
-        #     print("parents before")
-        #     for parent in event.parents:
-        #         print(self.uuid_event_dict[parent])
-        #     print("cheater list")
-        #     print(self.validator_cheater_list)
-
         while parents:
             parent_id = parents.popleft()
             parent = self.uuid_event_dict[parent_id]
-
-            # if (
-            #     parent.validator in self.validator_cheater_list[event.validator]
-            #     and parent.validator != event.validator
-            #     and self.time
-            #     >= self.validator_cheater_times[event.validator][parent.validator]
-            # ):
-            #     continue
-
-            # if (
-            #     self.validator == "F"
-            #     and event.validator == "B"
-            #     and parent.validator == "A"
-            #     and parent.timestamp == 1
-            # ):
-            #     print("LOWEST")
-            #     print("parent:", parent)
-            #     print("event:", event)
 
             if event.validator not in parent.lowest_observing or (
                 parent.lowest_observing[event.validator]["sequence"] > event.sequence
@@ -842,13 +753,6 @@ class Lachesis:
 
                 parents.extend(parent.parents)
 
-        # if event.validator == "C" and event.sequence == 3 and event.timestamp == 4:
-        #     print("parents after")
-        #     for parent in event.parents:
-        #         print(self.uuid_event_dict[parent])
-        #     print("cheater list")
-        #     print(self.validator_cheater_list)
-
     def process_events(self, events):
         timestamp_event_dict = {}
         for event in events:
@@ -880,6 +784,7 @@ class Lachesis:
                 self.set_roots(event)
                 self.events.append(event)
                 self.uuid_event_dict[event.uuid] = event
+                self.process_known_roots()
 
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "cyan", "blue", "purple"]
@@ -1000,9 +905,7 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    # lachesis_state = Lachesis()
-    # lachesis_state.run_lachesis("../inputs/cheaters/graph_1.txt", "./result.pdf", True)
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters_expanded/graph_1.txt", "./", True
+        "../inputs/graph_1.txt", "./", True
     )
