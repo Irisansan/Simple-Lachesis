@@ -98,32 +98,24 @@ def createGraph(
     parent_count = {}
     cheater_nodes = {}
 
-    # Prevent adding new nodes or stagger adding nodes before/after level 25
-    stop_after_level_25 = (
-        [random.random() < 0.1 for _ in range(num_nodes)]
-        if num_nodes > 10
-        else [False] * num_nodes
-    )
-    start_after_level_25 = (
-        [random.random() < 0.1 for _ in range(num_nodes)]
-        if num_nodes > 10
-        else [False] * num_nodes
-    )
+    start_times = [
+        random.randint(0, num_levels) if random.random() < 0.1 else 0
+        for _ in range(num_nodes)
+    ]
+    stop_times = [
+        random.randint(0, num_levels) if random.random() < 0.1 else num_levels
+        for _ in range(num_nodes)
+    ]
 
-    # Make sure the two conditions do not overlap
     for j in range(num_nodes):
-        if stop_after_level_25[j] and start_after_level_25[j]:
-            if random.random() < 0.5:
-                stop_after_level_25[j] = False
-            else:
-                start_after_level_25[j] = False
+        if start_times[j] > stop_times[j]:
+            start_times[j], stop_times[j] = stop_times[j], start_times[j]
 
     for i in range(num_levels):
         for j in range(num_nodes):
-            if (i > 25 and stop_after_level_25[j]) or (
-                i < 26 and start_after_level_25[j]
-            ):
+            if i < start_times[j] or i >= stop_times[j]:
                 continue
+
             if random.random() < node_present_probability:
                 node = (i, j)
                 G.add_node(node)
@@ -151,8 +143,6 @@ def createGraph(
                     if random.random() < cheater_probability:
                         for k in random.sample(range(num_nodes), num_nodes):
                             if k != j and (i - 1, k) in G.nodes:
-                                # print("CHEATER")
-                                # print(node[1]+1, node[0])
                                 cheater_nodes[node] = (i - 1, k)
                                 target = (i - 1, k)
                                 G.add_edge(node, target)
