@@ -170,12 +170,9 @@ class LachesisMultiInstance:
         min_timestamp = min(timestamp_event_dict.keys())
 
         for timestamp in range(min_timestamp, max_timestamp + 1):
-            # print(timestamp)
             self.time = timestamp
 
             current_timestamp_events = timestamp_event_dict.get(timestamp, [])
-
-            # print(self.time, self.activation_queue)
 
             max_frame = max([self.instances[v].frame for v in self.validators])
 
@@ -271,10 +268,6 @@ class LachesisMultiInstance:
 
             self.seen_events.extend(timestamp_events)
 
-            # if timestamp == 51:
-            #     print(self.activation_queue)
-            # print(self.activated_time)
-
     def run_lachesis_multiinstance(
         self, input_filename, output_folder, graph_results=False
     ):
@@ -295,9 +288,6 @@ class LachesisMultiInstance:
                 instance.graph_results(output_filename)
 
         for instance in self.instances.values():
-            # if instance.validator == "T":
-            # print(instance.validator, instance.quorum_cache)
-            # print("reference:", reference.quorum_cache)
             assert (
                 instance.frame <= reference.frame
             ), f"Frame is greater in instance {instance.validator}"
@@ -385,7 +375,15 @@ class Lachesis:
         self.validator_weights = validator_weights
 
     def defer_event(self, event, instances, uuid_validator_map):
-        self.process_queue[event.uuid] = event
+        cleared_event = Event(
+            event.validator,
+            event.timestamp,
+            event.sequence,
+            event.weight,
+            event.uuid,
+        )
+        cleared_event.parents = event.parents
+        self.process_queue[event.uuid] = cleared_event
         for parent_uuid in event.parents:
             if (
                 parent_uuid not in self.process_queue
@@ -394,8 +392,6 @@ class Lachesis:
                 parent_validator = uuid_validator_map.get(parent_uuid)
                 if parent_validator is not None and parent_validator in instances:
                     parent_creator_instance = instances[parent_validator]
-                    # if parent_uuid == "284944a8-bfbd-4b3a-8d5c-64de23f863f7":
-                    #     print(event)
                     parent_creator_instance.request_queue.append(
                         (self.validator, parent_uuid)
                     )
@@ -404,21 +400,14 @@ class Lachesis:
         while self.request_queue:
             requestor_id, requested_uuid = self.request_queue.popleft()
             requestor_instance = instances[requestor_id]
-            try:
-                requested_event = self.uuid_event_dict[requested_uuid]
-            except:
-                # print(self.events)
-                # print(requested_uuid)
-                # print(self.activation_queue)
-                # print(self.validator)
-                # # print(self.events)
-                # print(self.time)
-                # print(self.frame)
-                print(self.validator_highest_frame)
+            requested_event = self.uuid_event_dict[requested_uuid]
             cleared_requested_event = Event(
                 requested_event.validator,
                 requested_event.timestamp,
-                requested_event.sequence,
+                requested_event.sequence
+                if requested_event.validator not in self.validator_delay
+                else requested_event.sequence
+                + self.validator_delay[requested_event.validator],
                 requested_event.weight,
                 requested_event.uuid,
             )
@@ -440,7 +429,9 @@ class Lachesis:
                     cleared_event = Event(
                         event.validator,
                         event.timestamp,
-                        event.sequence,
+                        event.sequence
+                        if event.validator not in self.validator_delay
+                        else event.sequence + self.validator_delay[event.validator],
                         event.weight,
                         event.uuid,
                     )
@@ -454,30 +445,11 @@ class Lachesis:
             self.process_queue.clear()
 
     def quorum(self, frame):
-        # if self.validator == "T" and frame == 3:
-        #     print(self.activation_queue)
         for v in self.activation_queue:
             (f, w) = self.activation_queue[v]
             if frame >= f and v not in self.validators:
-                # if self.validator == "T":
-                #     print(self.activation_queue)
-                #     print(self.minimum_frame)
                 self.validators.append(v)
                 self.validator_weights[v] = w
-
-        # if (
-        #     self.validator == "T"
-        #     and frame == 2
-        #     and "M" in self.validators
-        #     and self.time == 16
-        # ):
-        #     print(self.validator_weights)
-        #     print(self.activation_queue)
-        #     print(self.frame)
-        #     print(self.time)
-        #     print(self.validators)
-        #     print(self.quorum_cache)
-        #     print(self.events)
 
         if frame in self.quorum_cache:
             return self.quorum_cache[frame]
@@ -900,17 +872,6 @@ class Lachesis:
 
             current_timestamp_events.sort(key=lambda e: (-e.sequence))
 
-            # if self.time == 51 and self.validator == "K":
-            #     print(current_timestamp_events)
-            #     print(self.frame)
-            #     print(self.validator_highest_frame)
-            #     print(self.activation_queue)
-            #     print(self.quorum_cache)
-            #     print(self.time)
-            #     print(self.events)
-            #     print(self.root_set_validators)
-            #     print()
-
             for event in current_timestamp_events:
                 if event.validator not in self.validators and self.time <= 20:
                     self.validators.append(event.validator)
@@ -925,7 +886,6 @@ class Lachesis:
                         self.frame + 1,
                         event.weight,
                     )
-                    # event.parents = []
                     continue
 
             for event in current_timestamp_events:
@@ -1079,11 +1039,11 @@ class Lachesis:
 if __name__ == "__main__":
     # lachesis_single_instance = Lachesis()
     # lachesis_single_instance.run_lachesis(
-    #     "../inputs/graphs_without_dropping_validators/graph_6.txt",
+    #     "../inputs/graphs_without_dropping_validators/graph_10.txt",
     #     "./result.pdf",
     #     True,
     # )
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/graphs_without_dropping_validators/graph_6.txt", "./", False
+        "../inputs/graphs_without_dropping_validators/graph_10.txt", "./", False
     )
