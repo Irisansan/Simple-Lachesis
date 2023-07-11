@@ -59,6 +59,7 @@ class Event:
         self.atropos = False
         self.highest_observed = {}
         self.lowest_observing = {}
+        self.parents = []
         self.visited = {}
 
     def add_parent(self, parent_uuid):
