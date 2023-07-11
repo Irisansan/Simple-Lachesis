@@ -103,7 +103,7 @@ def createGraph(
         for _ in range(num_nodes)
     ]
     stop_times = [
-        random.randint(0, num_levels) if random.random() < 0.1 else num_levels
+        random.randint(0, num_levels) if random.random() < 0.00 else num_levels
         for _ in range(num_nodes)
     ]
 

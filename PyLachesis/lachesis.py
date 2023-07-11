@@ -60,8 +60,6 @@ class Event:
         self.highest_observed = {}
         self.lowest_observing = {}
         self.visited = {}
-        self.parents = []
-        self.cheaters = {}
 
     def add_parent(self, parent_uuid):
         self.parents.append(parent_uuid)
@@ -444,45 +442,12 @@ class Lachesis:
 
         if frame in self.quorum_cache:
             return self.quorum_cache[frame]
-        else:
-            weights_total = sum(
-                self.validator_weights[v]
-                for v in self.validators
-                if v not in self.activation_queue
-                or frame >= self.activation_queue[v][0]
-            )
-            cheater_total = sum(
-                [self.validator_weights[v] for v in self.confirmed_cheaters]
-            )
-
-        for cheater in self.suspected_cheaters:
-            if cheater not in self.confirmed_cheaters:
-                cheater_observation = sum(
-                    self.validator_weights[validator]
-                    for validator, confirmed_cheaters in self.validator_confirmed_cheaters.items()
-                    if cheater in confirmed_cheaters
-                    and validator not in self.confirmed_cheaters
-                )
-                weights_total = sum(
-                    self.validator_weights[v]
-                    for v in self.validators
-                    if v not in self.activation_queue
-                    or frame >= self.activation_queue[v][0]
-                )
-                cheater_total = sum(
-                    self.validator_weights[v] for v in self.confirmed_cheaters
-                )
-                if (
-                    cheater_observation
-                    == weights_total - cheater_total - self.validator_weights[cheater]
-                ):
-                    self.confirmed_cheaters.add(cheater)
 
         weights_total = sum(
             self.validator_weights[v]
             for v in self.validators
             if v not in self.activation_queue or frame >= self.activation_queue[v][0]
-        ) - sum([self.validator_weights[v] for v in self.confirmed_cheaters])
+        )
 
         self.quorum_cache[frame] = 2 * weights_total // 3 + 1
         return self.quorum_cache[frame]
@@ -717,45 +682,11 @@ class Lachesis:
                             parent.validator
                         ] = event.timestamp
                     self.suspected_cheaters.add(parent.validator)
-                    event.cheaters[parent.validator] = set(event.validator)
                 else:
                     self.observed_sequences[event.validator][parent.validator].add(
                         parent.sequence
                     )
                 parents.extend(parent.parents)
-
-        for parent_id in event.parents:
-            parent = self.uuid_event_dict[parent_id]
-            for key in parent.cheaters:
-                if key not in event.cheaters:
-                    event.cheaters[key] = parent.cheaters[key]
-                else:
-                    event.cheaters[key] = event.cheaters[key] | parent.cheaters[key]
-
-        for cheater in self.suspected_cheaters:
-            if (
-                cheater not in self.confirmed_cheaters
-                and cheater != event.validator
-                and cheater not in self.validator_confirmed_cheaters
-            ):
-                cheater_observation = sum(
-                    self.validator_weights[validator]
-                    for validator, observed_cheaters in event.cheaters.items()
-                    if cheater in observed_cheaters
-                    and validator not in self.confirmed_cheaters
-                    and validator not in self.validator_confirmed_cheaters
-                )
-                weights_total = sum(self.validator_weights.values())
-                cheater_total = sum(
-                    self.validator_weights[v] for v in self.validator_confirmed_cheaters
-                )
-                if (
-                    cheater_observation
-                    == weights_total - cheater_total - self.validator_weights[cheater]
-                ):
-                    if event.validator not in self.validator_confirmed_cheaters:
-                        self.validator_confirmed_cheaters[event.validator] = set()
-                    self.validator_confirmed_cheaters[event.validator].add(cheater)
 
     def set_highest_events_observed(self, event):
         for parent_id in event.parents:
@@ -1029,13 +960,13 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    # lachesis_single_instance = Lachesis()
-    # lachesis_single_instance.run_lachesis(
-    #     "../inputs/graphs_without_dropping_validators/graph_628.txt",
-    #     "./result.pdf",
-    #     True,
-    # )
-    lachesis_multi_instance = LachesisMultiInstance()
-    lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters_expanded/graph_628.txt", "./", False
+    lachesis_single_instance = Lachesis()
+    lachesis_single_instance.run_lachesis(
+        "../inputs/graphs/graph_100.txt",
+        "./result.pdf",
+        True,
     )
+    # lachesis_multi_instance = LachesisMultiInstance()
+    # lachesis_multi_instance.run_lachesis_multiinstance(
+    #     "../inputs/cheaters/graph_100.txt", "./", False
+    # )

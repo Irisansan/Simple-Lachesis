@@ -50,9 +50,7 @@ def automate_lachesis(input_dir, output_dir, create_graph=False):
     print(f"success rate: {success_rate:.1f}%")
 
 
-# print("\nautomating graphs without cheaters...\n\n")
-# automate_lachesis("../inputs/graphs", "../inputs/results", False)
+print("\nautomating graphs without cheaters...\n\n")
+automate_lachesis("../inputs/graphs", "../inputs/results", False)
 print("\n\nautomating graphs with cheaters...\n\n")
-automate_lachesis(
-    "../inputs/cheaters_expanded", "../inputs/cheaters_expanded_results", False
-)
+automate_lachesis("../inputs/cheaters", "../inputs/cheaters", False)
