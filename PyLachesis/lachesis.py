@@ -6,6 +6,12 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
 from sortedcontainers import SortedSet
 
+# this variable dictates how much "foresight" validators are allowed to have
+# meaning, only validators within this field of view are known/seen and therefore
+# initialized
+global field_of_view
+field_of_view = 5
+
 
 def parse_data(file_path):
     event_list = []
@@ -37,7 +43,7 @@ def filter_validators_and_weights(events):
     validator_weights = {}
 
     for event in events:
-        if event.timestamp <= 5 and event.validator not in validators:
+        if event.timestamp <= field_of_view and event.validator not in validators:
             validators.append(event.validator)
             validator_weights[event.validator] = event.weight
 
@@ -192,7 +198,7 @@ class LachesisMultiInstance:
             timestamp_events = []
 
             for event in current_timestamp_events:
-                if self.time > 5:
+                if self.time > field_of_view:
                     if (
                         event.validator not in self.validators
                         and event.validator not in self.queued_validators
@@ -778,13 +784,16 @@ class Lachesis:
             current_timestamp_events.sort(key=lambda e: (-e.sequence, e.uuid))
 
             for event in current_timestamp_events:
-                if event.validator not in self.validators and event.timestamp <= 5:
+                if (
+                    event.validator not in self.validators
+                    and event.timestamp <= field_of_view
+                ):
                     self.validators.append(event.validator)
                     self.validator_weights[event.validator] = event.weight
 
                 if (
                     event.validator not in self.validators
-                    and self.time > 5
+                    and self.time > field_of_view
                     and event.validator not in self.activation_queue
                 ):
                     self.activation_queue[event.validator] = (
