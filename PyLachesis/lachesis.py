@@ -453,36 +453,16 @@ class Lachesis:
         self.quorum_cache[frame] = 2 * weights_total // 3 + 1
         return self.quorum_cache[frame]
 
-    def get_direct_child(self, event):
-        direct_child_uuid = next(
-            (
-                uuid
-                for uuid in event.parents
-                if self.uuid_event_dict[uuid].sequence == event.sequence - 1
-                and self.uuid_event_dict[uuid].validator == event.validator
-            ),
-            None,
-        )
-        if direct_child_uuid is not None:
-            return self.uuid_event_dict[direct_child_uuid]
-        else:
-            return None
-
     def is_root(self, event):
         if event.sequence == 1:
             return True
 
-        direct_child = self.get_direct_child(event)
-
         event.frame = max(
-            max(
-                [
-                    e.frame
-                    for e in self.events
-                    if e.validator == event.validator and e.sequence < event.sequence
-                ]
-            ),
-            direct_child.frame if direct_child else 1,
+            [
+                e.frame
+                for e in self.events
+                if e.validator == event.validator and e.sequence < event.sequence
+            ]
         )
 
         if event.validator not in self.validator_highest_frame:
