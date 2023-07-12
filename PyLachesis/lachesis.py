@@ -297,15 +297,15 @@ class LachesisMultiInstance:
             assert (
                 instance.frame <= reference.frame
             ), f"Frame is greater in instance {instance.validator}"
-            # assert (
-            #     instance.block <= reference.block
-            # ), f"Block is greater in instance {instance.validator}"
+            assert (
+                instance.block <= reference.block
+            ), f"Block is greater in instance {instance.validator}"
             assert (
                 instance.time <= reference.time
             ), f"Time is greater in instance {instance.validator}"
-            # assert (
-            #     instance.frame_to_decide <= reference.frame_to_decide
-            # ), f"Frame to decide is greater in instance {instance.validator}"
+            assert (
+                instance.frame_to_decide <= reference.frame_to_decide
+            ), f"Frame to decide is greater in instance {instance.validator}"
             for key in instance.quorum_cache.keys():
                 assert (
                     key in reference.quorum_cache.keys()
@@ -580,8 +580,6 @@ class Lachesis:
     def process_known_roots(self):
         for frame in range(self.frame_to_decide + 1, self.frame):
             frame_roots = self.root_set_events[frame]
-            if len(frame_roots) + len(self.suspected_cheaters) != len(self.validators):
-                break
             for root in frame_roots:
                 self.atropos_voting(root)
 
@@ -954,11 +952,11 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_single_instance = Lachesis()
     lachesis_single_instance.run_lachesis(
-        "../inputs/graphs/graph_73.txt",
+        "../inputs/graphs/graph_167.txt",
         "./result.pdf",
         True,
     )
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/graphs/graph_73.txt", "./", False
+        "../inputs/graphs/graph_167.txt", "./", False
     )
