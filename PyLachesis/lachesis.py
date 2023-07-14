@@ -65,6 +65,7 @@ class Event:
         self.lowest_observing = {}
         self.parents = []
         self.visited = {}
+        self.cheaters = {}
 
     def add_parent(self, parent_uuid):
         self.parents.append(parent_uuid)
@@ -120,6 +121,8 @@ class LachesisMultiInstance:
         self.activated_time = {}
         self.seen_events = []
         self.time = 0
+        self.maximum_frame = 1
+        self.minimum_frame = 1
 
     def parse_and_initialize(self):
         event_list = parse_data(self.file_path)
@@ -180,6 +183,9 @@ class LachesisMultiInstance:
 
             max_frame = max([self.instances[v].frame for v in self.validators])
 
+            if max_frame > self.maximum_frame:
+                self.maximum_frame = max_frame
+
             frames = []
             for v in self.validators:
                 # one of the initial validators has not appeared, initialize as 1
@@ -195,6 +201,9 @@ class LachesisMultiInstance:
 
             min_frame = min(frames) if len(frames) > 0 else 1
 
+            if min_frame >= self.minimum_frame:
+                self.minimum_frame = min_frame
+
             timestamp_events = []
 
             for event in current_timestamp_events:
@@ -204,7 +213,7 @@ class LachesisMultiInstance:
                         and event.validator not in self.queued_validators
                     ):
                         self.queued_validators.add(event.validator)
-                        (f, w) = max_frame + 1, event.weight
+                        (f, w) = self.maximum_frame + 1, event.weight
                         self.activation_queue[event.validator] = (f, w)
                         for validator in self.validators:
                             self.instances[validator].activation_queue[
@@ -214,7 +223,8 @@ class LachesisMultiInstance:
 
                     if (
                         event.validator not in self.instances
-                        and min_frame >= self.activation_queue[event.validator][0]
+                        and self.minimum_frame
+                        >= self.activation_queue[event.validator][0]
                     ):
                         event.parents = [
                             p
@@ -237,7 +247,8 @@ class LachesisMultiInstance:
 
                     if (
                         event.validator not in self.instances
-                        and min_frame < self.activation_queue[event.validator][0]
+                        and self.minimum_frame
+                        < self.activation_queue[event.validator][0]
                     ):
                         continue
 
@@ -292,8 +303,6 @@ class LachesisMultiInstance:
                 instance.graph_results(output_filename)
 
         for instance in self.instances.values():
-            # print(self.activation_queue)
-            # print(instance.validator, instance.validators)
             assert (
                 instance.frame <= reference.frame
             ), f"Frame is greater in instance {instance.validator}"
@@ -347,11 +356,14 @@ class Lachesis:
         self.observed_sequences = {}
         self.validator_cheater_list = {}
         self.validator_cheater_times = {}
+        self.validator_cheater_frames = {}
         self.validator_confirmed_cheaters = {}
         self.validator_visited_events = {}
         self.validator_highest_frame = {}
         self.activation_queue = {}
+        self.deactivation_queue = {}
         self.validator_delay = {}
+        self.cheaters_observed = {}
         self.quorum_cache = {}
         self.uuid_event_dict = {}
         self.suspected_cheaters = set()
@@ -364,6 +376,7 @@ class Lachesis:
         self.frame_to_decide = 1
         self.request_queue = deque()
         self.process_queue = {}
+        self.maximum_frame = 1
         self.minimum_frame = 1
         self.frame_times = []
 
@@ -455,7 +468,8 @@ class Lachesis:
         weights_total = sum(
             self.validator_weights[v]
             for v in self.validators
-            if v not in self.activation_queue or frame >= self.activation_queue[v][0]
+            if (v not in self.activation_queue or frame >= self.activation_queue[v][0])
+            # and (v not in self.deactivation_queue or frame < self.deactivation_queue[v])
         )
 
         self.quorum_cache[frame] = 2 * weights_total // 3 + 1
@@ -465,12 +479,10 @@ class Lachesis:
         if event.sequence == 1:
             return True
 
-        event.frame = max(
-            [
-                e.frame
-                for e in self.events
-                if e.validator == event.validator and e.sequence < event.sequence
-            ]
+        event.frame = (
+            self.validator_highest_frame[event.validator]
+            if event.validator in self.validator_highest_frame
+            else 1
         )
 
         if event.validator not in self.validator_highest_frame:
@@ -630,6 +642,8 @@ class Lachesis:
     def detect_forks(self, event):
         if event.validator not in self.validator_cheater_list:
             self.validator_cheater_list[event.validator] = set()
+        if event.validator not in self.validator_cheater_frames:
+            self.validator_cheater_frames[event.validator] = {}
 
         parents = deque(event.parents)
 
@@ -659,6 +673,12 @@ class Lachesis:
                     in self.observed_sequences[event.validator][parent.validator]
                 ):
                     self.validator_cheater_list[event.validator].add(parent.validator)
+                    self.validator_cheater_frames[event.validator][parent.validator] = (
+                        self.validator_highest_frame[event.validator]
+                        if event.validator in self.validator_highest_frame
+                        else 1
+                    )
+                    self.validator_cheater_frames[event.validator]
                     if event.validator not in self.validator_cheater_times:
                         self.validator_cheater_times[event.validator] = {}
                     if (
@@ -669,11 +689,20 @@ class Lachesis:
                             parent.validator
                         ] = event.timestamp
                     self.suspected_cheaters.add(parent.validator)
+                    event.cheaters[parent.validator] = set(event.validator)
                 else:
                     self.observed_sequences[event.validator][parent.validator].add(
                         parent.sequence
                     )
                 parents.extend(parent.parents)
+
+        for parent_id in event.parents:
+            parent = self.uuid_event_dict[parent_id]
+            for key in parent.cheaters:
+                if key not in event.cheaters:
+                    event.cheaters[key] = parent.cheaters[key]
+                else:
+                    event.cheaters[key] = event.cheaters[key] | parent.cheaters[key]
 
     def set_highest_events_observed(self, event):
         for parent_id in event.parents:
@@ -774,8 +803,11 @@ class Lachesis:
 
             min_frame = min(frames) if len(frames) > 0 else 1
 
-            if min_frame >= self.minimum_frame:
+            if min_frame > self.minimum_frame:
                 self.minimum_frame = min_frame
+
+            if self.frame > self.maximum_frame:
+                self.maximum_frame = self.frame
 
             current_timestamp_events = timestamp_event_dict.get(timestamp, [])
 
@@ -795,7 +827,7 @@ class Lachesis:
                     and event.validator not in self.activation_queue
                 ):
                     self.activation_queue[event.validator] = (
-                        self.frame + 1,
+                        self.maximum_frame + 1,
                         event.weight,
                     )
                     continue
@@ -952,11 +984,11 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_single_instance = Lachesis()
     lachesis_single_instance.run_lachesis(
-        "../inputs/graphs/graph_167.txt",
+        "../inputs/cheaters/graph_45.txt",
         "./result.pdf",
-        True,
+        False,
     )
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/graphs/graph_167.txt", "./", False
+        "../inputs/cheaters/graph_45.txt", "./", True
     )
