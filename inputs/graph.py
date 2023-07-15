@@ -103,7 +103,7 @@ def createGraph(
         for _ in range(num_nodes)
     ]
     stop_times = [
-        random.randint(0, num_levels) if random.random() < 0.00 else num_levels
+        random.randint(0, num_levels) if random.random() < 0.1 else num_levels - 1
         for _ in range(num_nodes)
     ]
 
@@ -113,10 +113,12 @@ def createGraph(
 
     for i in range(num_levels):
         for j in range(num_nodes):
-            if i < start_times[j] or i >= stop_times[j]:
+            if i < start_times[j] or i > stop_times[j]:
                 continue
 
-            if random.random() < node_present_probability:
+            if (
+                i == stop_times[j] and i <= num_levels - 1
+            ) or random.random() < node_present_probability:
                 node = (i, j)
                 G.add_node(node)
                 if i == 0:
@@ -144,6 +146,7 @@ def createGraph(
                         for k in random.sample(range(num_nodes), num_nodes):
                             if k != j and (i - 1, k) in G.nodes:
                                 cheater_nodes[node] = (i - 1, k)
+                                stop_times[j] = stop_times[k]
                                 target = (i - 1, k)
                                 G.add_edge(node, target)
                                 break
@@ -169,7 +172,13 @@ def createGraph(
                             G.add_edge(node, target)
 
     labels = {
-        (i, j): (chr(j + 65), i + 1, parent_count[(i, j)] + 1, weights[j])
+        (i, j): (
+            chr(j + 65),
+            i + 1,
+            parent_count[(i, j)] + 1,
+            weights[j],
+            True if i == stop_times[j] else False,
+        )
         for i in range(num_levels)
         for j in range(num_nodes)
         if (i, j) in G.nodes
@@ -295,7 +304,9 @@ def createGraph(
                 + ","
                 + str(labels[node][2])
                 + ","
-                + str(labels[node][3])  # print weight
+                + str(labels[node][3])
+                + ","
+                + str(labels[node][4])
                 + ")"
             )
             f.write(";")

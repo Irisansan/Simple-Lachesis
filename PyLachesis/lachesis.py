@@ -19,16 +19,24 @@ def parse_data(file_path):
     with open(file_path, "r") as file:
         for line in file:
             unique_id_match = re.search(r"unique_id:\s([a-z0-9-]*)", line)
-            label_match = re.search(r"label:\s\(([\w\s]+),(\d+),(\d+),(\d+)\)", line)
+            label_match = re.search(
+                r"label:\s\(([\w\s]+),(\d+),(\d+),(\d+),(True|False)\)", line
+            )
             if not (unique_id_match and label_match):
                 continue
 
             unique_id = unique_id_match.group(1)
-            validator, timestamp, sequence, weight = label_match.groups()
+            validator, timestamp, sequence, weight, last_event = label_match.groups()
 
             event = Event(
-                validator, int(timestamp), int(sequence), int(weight), unique_id
+                validator,
+                int(timestamp),
+                int(sequence),
+                int(weight),
+                unique_id,
+                last_event == "True",
             )
+
             event_list.append(event)
 
             child_unique_ids = re.findall(r"child_unique_id:\s([a-z0-9-]*)", line)
@@ -51,7 +59,9 @@ def filter_validators_and_weights(events):
 
 
 class Event:
-    def __init__(self, validator, timestamp, sequence, weight, unique_id):
+    def __init__(
+        self, validator, timestamp, sequence, weight, unique_id, last_event=False
+    ):
         self.validator = validator
         self.timestamp = timestamp
         self.original_sequence = sequence
@@ -65,12 +75,14 @@ class Event:
         self.lowest_observing = {}
         self.parents = []
         self.visited = {}
+        self.last_event = last_event
 
     def add_parent(self, parent_uuid):
         self.parents.append(parent_uuid)
 
     def __repr__(self):
-        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, {self.uuid}, {self.root})"
+        return f"\nEvent({self.validator}, {self.timestamp}, {self.sequence}, {self.weight}, \
+              {self.uuid}, {self.root}, {self.last_event})"
 
     def __eq__(self, other):
         if isinstance(other, Event):
@@ -80,6 +92,7 @@ class Event:
                 and self.sequence == other.sequence
                 and self.weight == other.weight
                 and self.uuid == other.uuid
+                and self.last_event == other.last_event
             )
         return False
 
@@ -238,6 +251,7 @@ class LachesisMultiInstance:
                                 seen_event.original_sequence,
                                 seen_event.weight,
                                 seen_event.uuid,
+                                seen_event.last_event,
                             )
                             cleared_event.parents = seen_event.parents
                             self.instances[event.validator].process_queue[
@@ -267,6 +281,7 @@ class LachesisMultiInstance:
                     event.original_sequence,
                     event.weight,
                     event.uuid,
+                    event.last_event,
                 )
                 cleared_event.parents = event.parents
                 timestamp_events.append(cleared_event)
@@ -360,7 +375,6 @@ class Lachesis:
         self.validator_visited_events = {}
         self.validator_highest_frame = {}
         self.activation_queue = {}
-        self.deactivation_queue = {}
         self.deactivated_validators = set()
         self.validator_delay = {}
         self.cheaters_observed = {}
@@ -393,6 +407,7 @@ class Lachesis:
             event.original_sequence,
             event.weight,
             event.uuid,
+            event.last_event,
         )
         cleared_event.parents = event.parents
         self.process_queue[event.uuid] = cleared_event
@@ -423,6 +438,7 @@ class Lachesis:
                 requested_event.original_sequence,
                 requested_event.weight,
                 requested_event.uuid,
+                requested_event.last_event,
             )
             cleared_requested_event.parents = requested_event.parents
             requestor_instance.process_queue[requested_uuid] = cleared_requested_event
@@ -445,6 +461,7 @@ class Lachesis:
                         event.original_sequence,
                         event.weight,
                         event.uuid,
+                        event.last_event,
                     )
                     cleared_event.parents = event.parents
 
