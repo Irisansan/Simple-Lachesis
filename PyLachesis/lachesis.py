@@ -65,7 +65,6 @@ class Event:
         self.lowest_observing = {}
         self.parents = []
         self.visited = {}
-        self.cheaters = {}
 
     def add_parent(self, parent_uuid):
         self.parents.append(parent_uuid)
@@ -362,6 +361,7 @@ class Lachesis:
         self.validator_highest_frame = {}
         self.activation_queue = {}
         self.deactivation_queue = {}
+        self.deactivated_validators = set()
         self.validator_delay = {}
         self.cheaters_observed = {}
         self.quorum_cache = {}
@@ -456,20 +456,45 @@ class Lachesis:
             self.process_queue.clear()
 
     def quorum(self, frame):
+        if frame in self.quorum_cache:
+            return self.quorum_cache[frame]
+
+        deactivated_validators = self.deactivated_validators.copy()
+
+        active_validators = [
+            v for v in self.validators if (v not in deactivated_validators)
+        ]
+
+        for s in self.suspected_cheaters:
+            if s not in deactivated_validators:
+                observed_weight = 0
+                for v in active_validators:
+                    if (
+                        v in self.validator_cheater_frames
+                        and s in self.validator_cheater_frames[v]
+                    ):
+                        if self.validator_cheater_frames[v][s] < frame - 1:
+                            observed_weight += self.validator_weights[v]
+                if (
+                    observed_weight
+                    >= 2
+                    * sum([self.validator_weights[v] for v in active_validators])
+                    // 3
+                    + 1
+                ):
+                    self.deactivated_validators.add(s)
+
         for v in self.activation_queue:
             (f, w) = self.activation_queue[v]
             if frame >= f and v not in self.validators:
-                self.validators.append(v)
                 self.validator_weights[v] = w
-
-        if frame in self.quorum_cache:
-            return self.quorum_cache[frame]
+                self.validators.append(v)
 
         weights_total = sum(
             self.validator_weights[v]
             for v in self.validators
             if (v not in self.activation_queue or frame >= self.activation_queue[v][0])
-            # and (v not in self.deactivation_queue or frame < self.deactivation_queue[v])
+            and (v not in self.deactivated_validators)
         )
 
         self.quorum_cache[frame] = 2 * weights_total // 3 + 1
@@ -673,12 +698,17 @@ class Lachesis:
                     in self.observed_sequences[event.validator][parent.validator]
                 ):
                     self.validator_cheater_list[event.validator].add(parent.validator)
-                    self.validator_cheater_frames[event.validator][parent.validator] = (
-                        self.validator_highest_frame[event.validator]
-                        if event.validator in self.validator_highest_frame
-                        else 1
-                    )
-                    self.validator_cheater_frames[event.validator]
+                    if (
+                        parent.validator
+                        not in self.validator_cheater_frames[event.validator]
+                    ):
+                        self.validator_cheater_frames[event.validator][
+                            parent.validator
+                        ] = (
+                            self.validator_highest_frame[event.validator]
+                            if event.validator in self.validator_highest_frame
+                            else 1
+                        )
                     if event.validator not in self.validator_cheater_times:
                         self.validator_cheater_times[event.validator] = {}
                     if (
@@ -689,20 +719,11 @@ class Lachesis:
                             parent.validator
                         ] = event.timestamp
                     self.suspected_cheaters.add(parent.validator)
-                    event.cheaters[parent.validator] = set(event.validator)
                 else:
                     self.observed_sequences[event.validator][parent.validator].add(
                         parent.sequence
                     )
                 parents.extend(parent.parents)
-
-        for parent_id in event.parents:
-            parent = self.uuid_event_dict[parent_id]
-            for key in parent.cheaters:
-                if key not in event.cheaters:
-                    event.cheaters[key] = parent.cheaters[key]
-                else:
-                    event.cheaters[key] = event.cheaters[key] | parent.cheaters[key]
 
     def set_highest_events_observed(self, event):
         for parent_id in event.parents:
@@ -984,11 +1005,11 @@ class Lachesis:
 if __name__ == "__main__":
     lachesis_single_instance = Lachesis()
     lachesis_single_instance.run_lachesis(
-        "../inputs/cheaters/graph_45.txt",
+        "../inputs/cheaters/graph_48.txt",
         "./result.pdf",
         False,
     )
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters/graph_45.txt", "./", True
+        "../inputs/cheaters/graph_48.txt", "./", False
     )
