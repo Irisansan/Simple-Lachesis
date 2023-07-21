@@ -129,6 +129,8 @@ class LachesisMultiInstance:
         self.validators = []
         self.validator_weights = {}
         self.queued_validators = set()
+        self.deactivation_queue = {}
+        self.deactivation_time = {}
         self.activation_queue = {}
         self.activated_time = {}
         self.seen_events = []
@@ -171,6 +173,10 @@ class LachesisMultiInstance:
         self.instances[event.validator] = lachesis_instance
         for v in self.activation_queue:
             lachesis_instance.activation_queue[v] = self.activation_queue[v]
+        for v in self.deactivation_queue:
+            lachesis_instance.deactivation_queue[v] = self.deactivation_queue[v]
+        for v in self.deactivation_time:
+            lachesis_instance.deactivation_time[v] = self.deactivation_time[v]
 
     def process(self):
         (
@@ -200,16 +206,20 @@ class LachesisMultiInstance:
 
             frames = []
             for v in self.validators:
-                # one of the initial validators has not appeared, initialize as 1
                 if (
-                    v not in self.instances[v].validator_highest_frame
-                    and v not in self.activation_queue
+                    v not in self.deactivation_time
+                    or self.time <= self.deactivation_time[v]
                 ):
-                    frames.append(1)
-                # all other validators must be present (latent validators must first appear)
-                # to account for their frames
-                elif v in self.instances[v].validator_highest_frame:
-                    frames.append(self.instances[v].validator_highest_frame[v])
+                    # one of the initial validators has not appeared, initialize as 1
+                    if (
+                        v not in self.instances[v].validator_highest_frame
+                        and v not in self.activation_queue
+                    ):
+                        frames.append(1)
+                    # all other validators must be present (latent validators must first appear)
+                    # to account for their frames
+                    elif v in self.instances[v].validator_highest_frame:
+                        frames.append(self.instances[v].validator_highest_frame[v])
 
             min_frame = min(frames) if len(frames) > 0 else 1
 
@@ -219,6 +229,17 @@ class LachesisMultiInstance:
             timestamp_events = []
 
             for event in current_timestamp_events:
+                if event.last_event:
+                    self.deactivation_queue[event.validator] = self.maximum_frame + 2
+                    self.deactivation_time[event.validator] = event.timestamp
+                    for validator in self.validators:
+                        self.instances[validator].deactivation_queue[
+                            event.validator
+                        ] = (self.maximum_frame + 2)
+                        self.instances[validator].deactivation_time[
+                            event.validator
+                        ] = event.timestamp
+
                 if self.time > field_of_view:
                     if (
                         event.validator not in self.validators
@@ -375,7 +396,10 @@ class Lachesis:
         self.validator_visited_events = {}
         self.validator_highest_frame = {}
         self.activation_queue = {}
+        self.deactivation_queue = {}
+        self.deactivation_time = {}
         self.deactivated_validators = set()
+        self.deactivated_cheaters = set()
         self.validator_delay = {}
         self.cheaters_observed = {}
         self.quorum_cache = {}
@@ -476,14 +500,21 @@ class Lachesis:
         if frame in self.quorum_cache:
             return self.quorum_cache[frame]
 
+        deactivated_cheaters = self.deactivated_cheaters.copy()
         deactivated_validators = self.deactivated_validators.copy()
 
+        for v in self.deactivation_queue:
+            if frame >= self.deactivation_queue[v]:
+                self.deactivated_validators.add(v)
+
         active_validators = [
-            v for v in self.validators if (v not in deactivated_validators)
+            v
+            for v in self.validators
+            if (v not in deactivated_cheaters) and (v not in deactivated_validators)
         ]
 
         for s in self.suspected_cheaters:
-            if s not in deactivated_validators:
+            if s not in deactivated_cheaters:
                 observed_weight = 0
                 for v in active_validators:
                     if (
@@ -499,7 +530,7 @@ class Lachesis:
                     // 3
                     + 1
                 ):
-                    self.deactivated_validators.add(s)
+                    self.deactivated_cheaters.add(s)
 
         for v in self.activation_queue:
             (f, w) = self.activation_queue[v]
@@ -511,6 +542,7 @@ class Lachesis:
             self.validator_weights[v]
             for v in self.validators
             if (v not in self.activation_queue or frame >= self.activation_queue[v][0])
+            and (v not in self.deactivated_cheaters)
             and (v not in self.deactivated_validators)
         )
 
@@ -828,16 +860,20 @@ class Lachesis:
             self.time = timestamp
             frames = []
             for v in self.validators:
-                # one of the initial validators has not appeared, initialize as 1
                 if (
-                    v not in self.validator_highest_frame
-                    and v not in self.activation_queue
+                    v not in self.deactivation_time
+                    or self.time <= self.deactivation_time[v]
                 ):
-                    frames.append(1)
-                # all other validators must be present (latent validators must first appear)
-                # to account for their frames
-                elif v in self.validator_highest_frame:
-                    frames.append(self.validator_highest_frame[v])
+                    # one of the initial validators has not appeared, initialize as 1
+                    if (
+                        v not in self.validator_highest_frame
+                        and v not in self.activation_queue
+                    ):
+                        frames.append(1)
+                    # all other validators must be present (latent validators must first appear)
+                    # to account for their frames
+                    elif v in self.validator_highest_frame:
+                        frames.append(self.validator_highest_frame[v])
 
             min_frame = min(frames) if len(frames) > 0 else 1
 
@@ -852,6 +888,12 @@ class Lachesis:
             current_timestamp_events.sort(key=lambda e: (-e.sequence, e.uuid))
 
             for event in current_timestamp_events:
+                if event.last_event and event.validator not in self.deactivation_queue:
+                    self.deactivation_queue[event.validator] = self.maximum_frame + 2
+
+                if event.last_event and event.validator not in self.deactivation_time:
+                    self.deactivation_time[event.validator] = event.timestamp
+
                 if (
                     event.validator not in self.validators
                     and event.timestamp <= field_of_view
@@ -1020,13 +1062,13 @@ class Lachesis:
 
 
 if __name__ == "__main__":
-    lachesis_single_instance = Lachesis()
-    lachesis_single_instance.run_lachesis(
-        "../inputs/cheaters/graph_48.txt",
-        "./result.pdf",
-        False,
-    )
+    # lachesis_single_instance = Lachesis()
+    # lachesis_single_instance.run_lachesis(
+    #     "../inputs/cheaters/graph_48.txt",
+    #     "./result.pdf",
+    #     True,
+    # )
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/cheaters/graph_48.txt", "./", False
+        "../inputs/graphs/graph_54.txt", "./", False
     )
