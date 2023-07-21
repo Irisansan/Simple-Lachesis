@@ -76,6 +76,7 @@ class Event:
         self.parents = []
         self.visited = {}
         self.last_event = last_event
+        self.direct_parents = set()
 
     def add_parent(self, parent_uuid):
         self.parents.append(parent_uuid)
@@ -392,7 +393,6 @@ class Lachesis:
         self.validator_cheater_list = {}
         self.validator_cheater_times = {}
         self.validator_cheater_frames = {}
-        self.validator_confirmed_cheaters = {}
         self.validator_visited_events = {}
         self.validator_highest_frame = {}
         self.activation_queue = {}
@@ -400,13 +400,11 @@ class Lachesis:
         self.deactivation_time = {}
         self.deactivated_validators = set()
         self.deactivated_cheaters = set()
-        self.validator_delay = {}
         self.cheaters_observed = {}
         self.quorum_cache = {}
         self.uuid_event_dict = {}
         self.suspected_cheaters = set()
         self.confirmed_cheaters = set()
-        self.highest_validator_timestamps = {}
         self.election_votes = {}
         self.atropos_roots = {}
         self.decided_roots = {}
@@ -416,7 +414,7 @@ class Lachesis:
         self.process_queue = {}
         self.maximum_frame = 1
         self.minimum_frame = 1
-        self.frame_times = []
+        self.leaves = set()
 
     def initialize_validators(self, validators=None, validator_weights=None):
         self.validators = [] if validators is None else validators.copy()
@@ -456,40 +454,34 @@ class Lachesis:
             requestor_id, requested_uuid = self.request_queue.popleft()
             requestor_instance = instances[requestor_id]
             requested_event = self.uuid_event_dict[requested_uuid]
-            cleared_requested_event = Event(
-                requested_event.validator,
-                requested_event.timestamp,
-                requested_event.original_sequence,
-                requested_event.weight,
-                requested_event.uuid,
-                requested_event.last_event,
-            )
-            cleared_requested_event.parents = requested_event.parents
-            requestor_instance.process_queue[requested_uuid] = cleared_requested_event
 
-            for event_uuid, event in self.uuid_event_dict.items():
-                if (
-                    (
-                        event.timestamp < requested_event.timestamp
-                        or (
-                            event.timestamp == requested_event.timestamp
-                            and self.validator == requested_event.validator
+            for leaf_uuid in self.leaves:
+                stack = [str(leaf_uuid)]
+
+                while stack:
+                    current_uuid = stack.pop()
+
+                    if (
+                        current_uuid in requestor_instance.uuid_event_dict
+                        or current_uuid in requestor_instance.process_queue
+                    ):
+                        continue
+
+                    current_event = self.uuid_event_dict[str(current_uuid)]
+
+                    if current_event.timestamp <= requested_event.timestamp:
+                        cleared_event = Event(
+                            current_event.validator,
+                            current_event.timestamp,
+                            current_event.original_sequence,
+                            current_event.weight,
+                            current_event.uuid,
+                            current_event.last_event,
                         )
-                    )
-                    and event_uuid not in requestor_instance.uuid_event_dict
-                    and event_uuid not in requestor_instance.process_queue
-                ):
-                    cleared_event = Event(
-                        event.validator,
-                        event.timestamp,
-                        event.original_sequence,
-                        event.weight,
-                        event.uuid,
-                        event.last_event,
-                    )
-                    cleared_event.parents = event.parents
+                        cleared_event.parents = current_event.parents
+                        requestor_instance.process_queue[current_uuid] = cleared_event
 
-                    requestor_instance.process_queue[event_uuid] = cleared_event
+                    stack.extend(current_event.direct_parents)
 
     def process_deferred_events(self):
         if self.process_queue:
@@ -595,7 +587,6 @@ class Lachesis:
             else:
                 self.root_set_events[event.frame] = [event]
                 self.root_set_validators[event.frame] = [event.validator]
-                self.frame_times.append(self.time)
                 self.quorum(event.frame)
 
         if event.validator not in self.validator_highest_frame:
@@ -888,6 +879,17 @@ class Lachesis:
             current_timestamp_events.sort(key=lambda e: (-e.sequence, e.uuid))
 
             for event in current_timestamp_events:
+                for parent in event.parents:
+                    if parent in self.uuid_event_dict:
+                        if (
+                            self.uuid_event_dict[str(parent)].validator
+                            == event.validator
+                        ):
+                            event.direct_parents.add(str(parent))
+                            if parent in self.leaves:
+                                self.leaves.remove(str(parent))
+                self.leaves.add(str(event.uuid))
+
                 if event.last_event and event.validator not in self.deactivation_queue:
                     self.deactivation_queue[event.validator] = self.maximum_frame + 2
 
@@ -942,6 +944,9 @@ class Lachesis:
                 self.events.append(event)
                 self.uuid_event_dict[event.uuid] = event
                 self.process_known_roots()
+
+        # print(self.leaves)
+        # print(len(self.leaves))
 
     def graph_results(self, output_filename):
         colors = ["orange", "yellow", "cyan", "blue", "purple"]
@@ -1064,11 +1069,11 @@ class Lachesis:
 if __name__ == "__main__":
     # lachesis_single_instance = Lachesis()
     # lachesis_single_instance.run_lachesis(
-    #     "../inputs/cheaters/graph_48.txt",
+    #     "../inputs/graphs/graph_58.txt",
     #     "./result.pdf",
-    #     True,
+    #     False,
     # )
     lachesis_multi_instance = LachesisMultiInstance()
     lachesis_multi_instance.run_lachesis_multiinstance(
-        "../inputs/graphs/graph_54.txt", "./", False
+        "../inputs/graphs/graph_58.txt", "./", True
     )
