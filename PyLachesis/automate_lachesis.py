@@ -11,7 +11,9 @@ def create_dir(path):
         pass
 
 
-def automate_lachesis(input_dir, output_dir, create_graph=False):
+def automate_lachesis(
+    input_dir, output_dir, create_graph=False, create_graph_multi=False
+):
     input_graphs_directory = os.path.join(input_dir, "graph_*.txt")
     file_list = glob.glob(input_graphs_directory)
 
@@ -29,14 +31,17 @@ def automate_lachesis(input_dir, output_dir, create_graph=False):
             ]
 
             graph_dir = os.path.join(output_dir, f"graph_{graph_name}_results")
-            create_dir(graph_dir)
+            if create_graph or create_graph_multi:
+                create_dir(graph_dir)
 
             output_filename = os.path.join(graph_dir, "result.pdf")
 
             lachesis_state = Lachesis()
             lachesis_state.run_lachesis(input_filename, output_filename, create_graph)
 
-            lachesis_multi_instance = LachesisMultiInstance(graph_results=create_graph)
+            lachesis_multi_instance = LachesisMultiInstance(
+                graph_results=create_graph_multi
+            )
             lachesis_multi_instance.run_lachesis_multiinstance(
                 input_filename, graph_dir
             )
@@ -51,6 +56,6 @@ def automate_lachesis(input_dir, output_dir, create_graph=False):
 
 
 print("\nautomating graphs without cheaters...\n\n")
-automate_lachesis("../inputs/graphs", "../inputs/results", False)
+automate_lachesis("../inputs/graphs", "../inputs/results", True, False)
 print("\n\nautomating graphs with cheaters...\n\n")
-automate_lachesis("../inputs/cheaters", "../inputs/cheaters", False)
+automate_lachesis("../inputs/cheaters", "../inputs/cheaters_results", True, False)
