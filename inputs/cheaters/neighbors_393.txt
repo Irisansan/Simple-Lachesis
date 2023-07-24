@@ -1,0 +1,14 @@
+C: I
+I: C, K
+D: A, L, E, M
+E: D, F
+L: J, D
+M: D, F
+F: E, M
+J: L, N
+N: J, G
+G: N
+K: I
+B: H
+H: B
+A: D

@@ -1,0 +1,14 @@
+A: B, C, D, E, F, H, I, L, M, N
+B: A, C, D, E, F, H, J, K, L, M, N
+C: A, B, D, E, F, H, I, J, K, L, M
+D: A, B, C, E, F, G, H, I, J, K, L, N
+E: A, B, C, D, F, G, I, J, K, L, M, N
+F: A, B, C, D, E, G, H, I, J, K, L, M, N
+H: A, B, C, D, F, G, I, J, K, L, M
+I: A, C, D, E, F, H, K, M
+L: A, B, C, D, E, F, G, H, J, K, N
+M: A, B, C, E, F, H, I, J, K, N
+N: A, B, D, E, F, J, L, M
+J: B, C, D, E, F, G, H, K, L, M, N
+K: B, C, D, E, F, G, H, I, J, L, M
+G: D, E, F, H, J, K, L

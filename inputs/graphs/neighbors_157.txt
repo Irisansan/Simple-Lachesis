@@ -1,18 +1,9 @@
-A: B, F, G, H, J, K, L, M, P, Q
-B: A, D, E, F, H, I, J, K, N, O, P, Q
-F: A, B, C, D, G, I, K, L, N, O, P, Q, R
-G: A, D, E, F, J, K, L, O, P
-H: A, B, C, E, I, J, K, L, M, N, P, Q
-J: A, B, C, D, E, G, H, I, K, L, M, N, Q, R
-K: A, B, D, E, F, G, H, I, J, N, O, P, R
-L: A, D, F, G, H, I, J, M, N, O, Q, R
-M: A, C, D, E, H, J, L, N, O, P, Q
-P: A, B, C, D, E, F, G, H, I, K, M, Q, R
-Q: A, B, E, F, H, I, J, L, M, N, O, P
-D: B, C, E, F, G, I, J, K, L, M, N, P, R
-E: B, C, D, G, H, I, J, K, M, O, P, Q, R
-I: B, C, D, E, F, H, J, K, L, O, P, Q
-N: B, D, F, H, J, K, L, M, Q
-O: B, E, F, G, I, K, L, M, Q
-C: D, E, F, H, I, J, M, P
-R: D, E, F, J, K, L, P
+A: B, C, D, E, F, G, I
+B: A, C, D, E, G
+C: A, B, G, I
+D: A, B, E, F, G, H, I
+E: A, B, D, F
+F: A, D, E, G, H
+G: A, B, C, D, F
+I: A, C, D, H
+H: I, D, F

@@ -1,4 +1,19 @@
-A: B, D
-B: A, C
-D: A, C
-C: B, D
+A: I, B, J, P
+B: A, C, F, H, N, P
+I: A, C, G, J, O, P
+J: A, H, I, L, M, O, S
+P: A, B, I, K, L, M, N
+C: I, B, K
+F: Q, B, L
+H: B, E, G, J, O, R
+N: B, K, L, O, P, R
+K: C, D, L, M, N, P, S
+D: K, M, O, Q, S
+M: D, J, K, P, Q
+O: D, E, H, I, J, L, N, Q
+Q: D, F, M, O, R
+S: L, J, K, D
+E: O, G, H
+G: I, E, H
+L: F, J, K, N, O, P, S
+R: Q, N, H

@@ -1,0 +1,25 @@
+A: J, C, W
+C: A, I, L, N, S, T, U, Y
+J: A, L, M, O, Q
+W: A, B, H, K, S, T
+B: R, W
+R: B, T, F
+I: C, S, M, F
+L: J, C
+N: T, C, S, P
+S: C, H, I, N, P, T, U, W
+T: C, E, G, H, M, N, R, S, W
+U: Y, C, S
+Y: C, F, H, M, U
+D: G, H, K, M, O
+G: T, D, E, H
+H: D, F, G, M, S, T, W, Y
+K: D, W
+M: D, H, I, J, P, Q, T, Y
+O: J, D, E
+E: T, V, G, O
+V: E
+F: I, R, Y, H
+Q: J, M, P
+P: M, N, Q, S, X
+X: P

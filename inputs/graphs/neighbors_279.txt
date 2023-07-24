@@ -1,0 +1,15 @@
+A: B, C, D, F, G, O
+B: A, J, K, O
+C: A, E, O, H
+D: A, G, J, N, O
+F: A, E, K, L, N
+G: A, I, K, D
+O: A, B, C, D, H, J, K, N
+J: B, D, M, O
+K: B, E, F, G, I, M, O
+E: C, F, I, K, L, M, N
+H: C, O
+N: D, E, F, I, O
+I: E, G, K, L, N
+L: I, E, F
+M: J, K, E

@@ -1,0 +1,12 @@
+unique_id: ba528033-7e69-4981-8749-db49c4d21643 label: (A,1,1,1,True);
+unique_id: 0f0b89ad-5900-4824-82c3-f61f88e9961f label: (B,1,1,1,False);
+unique_id: f2e28f83-025c-4179-9988-b5ec91d6e22f label: (C,2,1,1,False);
+unique_id: b307bd90-5460-43b9-ac68-7460d7863726 label: (C,3,2,1,False); child_unique_id: f2e28f83-025c-4179-9988-b5ec91d6e22f child_label: (C,2,1);
+unique_id: 121ebb79-5d29-4274-ac63-b6d9dee579a0 label: (B,4,2,1,False); child_unique_id: 0f0b89ad-5900-4824-82c3-f61f88e9961f child_label: (B,1,1);
+unique_id: 7a5df13a-3805-45e6-9d03-17bfbbd50a39 label: (C,4,3,1,False); child_unique_id: b307bd90-5460-43b9-ac68-7460d7863726 child_label: (C,3,2);
+unique_id: 04ed9cbc-328a-4d92-a1a4-2db7bfe97466 label: (B,5,3,1,False); child_unique_id: 121ebb79-5d29-4274-ac63-b6d9dee579a0 child_label: (B,4,2);
+unique_id: feaa256e-2411-47dd-857d-a2cc0ec0b11e label: (C,5,4,1,False); child_unique_id: 7a5df13a-3805-45e6-9d03-17bfbbd50a39 child_label: (C,4,3);
+unique_id: 6f4bd2d0-7a44-4ef5-9fa3-e1c2713d678f label: (D,5,1,1,False); child_unique_id: 7a5df13a-3805-45e6-9d03-17bfbbd50a39 child_label: (C,4,3);
+unique_id: e968fff5-f0ec-438a-b5ad-adfe09265366 label: (B,6,4,1,True); child_unique_id: 04ed9cbc-328a-4d92-a1a4-2db7bfe97466 child_label: (B,5,3);
+unique_id: a73433b4-dd53-4250-b47d-d7493093933d label: (C,6,5,1,True); child_unique_id: feaa256e-2411-47dd-857d-a2cc0ec0b11e child_label: (C,5,4); child_unique_id: 6f4bd2d0-7a44-4ef5-9fa3-e1c2713d678f child_label: (D,5,1);
+unique_id: d47e6e41-2d62-44c8-80f7-7afb4b04dfe9 label: (D,6,2,1,True); child_unique_id: 6f4bd2d0-7a44-4ef5-9fa3-e1c2713d678f child_label: (D,5,1); child_unique_id: 04ed9cbc-328a-4d92-a1a4-2db7bfe97466 child_label: (B,5,3);

@@ -1,24 +1,23 @@
-A: B, C, D, E, F, G, H, J, K, L, N, O, P, Q, R, T
-B: A, C, D, G, J, K, L, N, P, Q, R, S, T, U, V, W, X
-C: A, B, E, F, H, K, L, M, S, V, W, X
-D: A, B, E, F, H, I, J, L, M, N, P, Q, R, S, U
-E: A, C, D, G, H, I, M, N, P, Q, R, S, U, V, X
-F: A, C, D, H, I, J, K, L, M, N, O, P, Q, R, S, T, U, V, W
-G: A, B, E, I, L, N, O, P, T, U, V, X
-H: A, C, D, E, F, I, J, K, L, M, P, Q, T, V, X
-J: A, B, D, F, H, I, L, M, P, S, T, U, W, X
-K: A, B, C, F, H, I, N, P, Q, R, V, W, X
-L: A, B, C, D, F, G, H, J, M, N, R, S
-N: A, B, D, E, F, G, I, K, L, M, Q, S, T, V, W, X
-O: A, F, G, I, M, P, Q, R, S, T, U, V, W, X
-P: A, B, D, E, F, G, H, I, J, K, M, O, Q, S, U, W, X
-Q: A, B, D, E, F, H, K, M, N, O, P, R, S, T, V, W, X
-R: A, B, D, E, F, I, K, L, M, O, Q, S, T, U, V, W
-T: A, B, F, G, H, J, N, O, Q, R, U, W, X
-S: B, C, D, E, F, I, J, L, M, N, O, P, Q, R, V, W
-U: B, D, E, F, G, I, J, O, P, R, T, W, X
-V: B, C, E, F, G, H, I, K, N, O, Q, R, S, W, X
-W: B, C, F, I, J, K, M, N, O, P, Q, R, S, T, U, V
-X: B, C, E, G, H, I, J, K, N, O, P, Q, T, U, V
-M: C, D, E, F, H, J, L, N, O, P, Q, R, S, W
-I: D, E, F, G, H, J, K, N, O, P, R, S, U, V, W, X
+A: B, C, D, E, F, G, J, L, M, N, R, S, U, W
+B: A, D, E, I, J, N, P, Q, W
+C: A, D, E, G, I, K, L, M, P, Q, R, S, T, W
+D: A, B, C, E, F, G, H, I, K, Q, S, T, V, W
+E: A, B, C, D, F, G, I, J, L, M, P, R, T, W
+F: A, D, E, G, H, I, J, K, M, N, Q, R, T, V, W
+G: A, C, D, E, F, K, L, N, O, P, R, V
+J: A, B, E, F, H, I, L, N, O, P, U, V, W
+L: A, C, E, G, I, J, K, N, O, P, S, T, V
+M: A, C, E, F, H, I, K, N, R, S, T
+N: A, B, F, G, J, K, L, M, P, U
+R: A, C, E, F, G, M, O, Q, S, V
+S: A, C, D, H, I, L, M, O, Q, R, T, U, V, W
+U: A, I, J, N, O, Q, S, T, W
+W: A, B, C, D, E, F, I, J, Q, S, U
+I: B, C, D, E, F, J, K, L, M, O, P, Q, S, T, U, V, W
+P: B, C, E, G, I, J, L, N, T, V
+Q: B, C, D, F, H, I, K, O, R, S, U, V, W
+K: C, D, F, G, H, I, L, M, N, O, Q
+T: C, D, E, F, I, L, M, O, P, S, U
+H: D, F, J, K, M, O, Q, S, V
+V: D, F, G, H, I, J, L, P, Q, R, S
+O: G, H, I, J, K, L, Q, R, S, T, U

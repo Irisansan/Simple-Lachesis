@@ -1,0 +1,17 @@
+A: D, F, G, J, L, N, P
+D: A, C, I, L, M, Q
+F: A, B, G, H, O
+G: A, B, C, E, F, K, O, P
+J: A, I, K, L, M, P
+L: A, D, E, J, K, N, Q
+N: A, E, H, K, L
+P: A, G, I, J, K, M, O
+B: C, F, G, H, K, O
+C: B, D, E, G, M, Q
+H: I, B, N, F
+K: B, G, I, J, L, N, O, P, Q
+O: B, F, G, I, K, P
+E: C, G, L, N, Q
+M: C, D, I, J, P
+Q: C, D, E, K, L
+I: D, H, J, K, M, O, P

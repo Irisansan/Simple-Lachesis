@@ -1,0 +1,10 @@
+unique_id: 56f43021-55f2-4f82-bf18-3efdcd450118 label: (C,1,1,1,False);
+unique_id: 51d1359f-7ae2-45aa-857b-02977336712f label: (D,1,1,1,False);
+unique_id: 22f9bcf0-95b3-415e-9f5a-d22ef84461ed label: (A,2,1,1,True);
+unique_id: 654a944b-274c-4d4b-a06c-f4fc9129966f label: (C,2,2,1,False); child_unique_id: 56f43021-55f2-4f82-bf18-3efdcd450118 child_label: (C,1,1);
+unique_id: 439f4cad-216b-4c3e-beed-a55b2aa5cec5 label: (B,3,1,1,False);
+unique_id: 0b643b69-f205-41ec-a8b1-c90cd5cb4592 label: (C,3,3,1,False); child_unique_id: 654a944b-274c-4d4b-a06c-f4fc9129966f child_label: (C,2,2); child_unique_id: 22f9bcf0-95b3-415e-9f5a-d22ef84461ed child_label: (A,2,1);
+unique_id: f523a6f8-736c-4425-bb83-ed2701680dca label: (C,4,4,1,False); child_unique_id: 0b643b69-f205-41ec-a8b1-c90cd5cb4592 child_label: (C,3,3);
+unique_id: 2ecc922e-238e-4464-83db-7c82a944c8e7 label: (B,5,2,1,True); child_unique_id: 439f4cad-216b-4c3e-beed-a55b2aa5cec5 child_label: (B,3,1);
+unique_id: 1824597c-fbcd-46cd-a6bd-a7ae29172524 label: (C,5,5,1,True); child_unique_id: f523a6f8-736c-4425-bb83-ed2701680dca child_label: (C,4,4);
+unique_id: 760708f5-b8a5-495d-b16c-b339be6cb8e9 label: (D,5,2,1,True); child_unique_id: 51d1359f-7ae2-45aa-857b-02977336712f child_label: (D,1,1);

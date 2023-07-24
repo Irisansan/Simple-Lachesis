@@ -1,8 +1,15 @@
-A: H
-H: A, D, E, F
-C: D
-D: C, H
-E: H
-B: G
-G: B
+A: B, C, K
+B: A, N
+C: A, G, H, K, N
+K: A, I, C, G
+N: B, C, E, I, M
+G: C, K
+H: C, M, F, O
+D: J, M
+J: L, D, E
+M: D, N, H
+E: J, N
 F: H
+I: K, N
+L: J
+O: H

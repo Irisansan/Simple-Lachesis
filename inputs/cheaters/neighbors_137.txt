@@ -1,6 +1,10 @@
-A: B, C, D, E, F
-B: A, C, D, E, F
-C: A, B, D, E, F
-D: A, B, C, F
-E: A, B, C, F
-F: A, B, C, D, E
+A: B, D, F, I, J
+B: A, D, E, F, G, H, I
+D: A, B, C, F, G, H
+F: A, B, C, D, G, H
+I: A, B, C, E, G, H, J
+J: A, C, G, H, I
+E: I, B, G, H
+G: B, C, D, E, F, H, I, J
+H: B, C, D, E, F, G, I, J
+C: D, F, G, H, I, J

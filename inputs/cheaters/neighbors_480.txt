@@ -1,0 +1,20 @@
+A: L, N, G
+G: A, R, L, M
+L: A, I, G
+N: A, C, K
+C: K, N
+K: B, C, N, F
+D: M
+M: D, F, G
+F: K, M, P
+P: F
+R: T, E, G
+H: Q, S
+Q: J, H
+S: H
+J: Q, O
+T: R
+O: J
+E: R
+B: K
+I: L

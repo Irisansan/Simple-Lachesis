@@ -1,0 +1,11 @@
+A: I, G
+G: A, C, D, F, H, I
+I: A, B, C, G, J
+B: I, C
+C: B, E, F, G, I, J
+E: C
+F: C, K, G
+J: I, C
+D: G
+K: F
+H: G

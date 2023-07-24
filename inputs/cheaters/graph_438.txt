@@ -1,0 +1,17 @@
+unique_id: fd86d5bc-2ab9-4841-beae-be0eef6d53fc label: (A,2,1,1,False);
+unique_id: c10fb6c1-94db-44c6-bb31-bbc7c17db645 label: (C,2,1,1,False);
+unique_id: 5fb5645d-7d64-4ecd-9c2e-4cc3b520338c label: (D,2,1,1,False);
+unique_id: 353acb78-99f2-4051-95c1-a6285823e2ad label: (E,2,1,1,False);
+unique_id: f60580d3-5fd0-4ba4-b959-1c00787f5499 label: (B,3,1,1,False);
+unique_id: a20b8710-fa0c-4635-9877-e835c6109899 label: (D,3,2,1,False); child_unique_id: 5fb5645d-7d64-4ecd-9c2e-4cc3b520338c child_label: (D,2,1); child_unique_id: fd86d5bc-2ab9-4841-beae-be0eef6d53fc child_label: (A,2,1); child_unique_id: c10fb6c1-94db-44c6-bb31-bbc7c17db645 child_label: (C,2,1); child_unique_id: 353acb78-99f2-4051-95c1-a6285823e2ad child_label: (E,2,1);
+unique_id: d6fd2a99-ec50-4db7-93fb-d3792ffe6602 label: (A,4,2,1,False); child_unique_id: fd86d5bc-2ab9-4841-beae-be0eef6d53fc child_label: (A,2,1); child_unique_id: a20b8710-fa0c-4635-9877-e835c6109899 child_label: (D,3,2);
+unique_id: 48f81693-7562-46e9-8a2b-eb6698e7970e label: (B,4,2,1,False); child_unique_id: f60580d3-5fd0-4ba4-b959-1c00787f5499 child_label: (B,3,1);
+unique_id: 31c5b7e7-8655-444f-bd89-05bee23019bb label: (D,4,3,1,False); child_unique_id: a20b8710-fa0c-4635-9877-e835c6109899 child_label: (D,3,2);
+unique_id: 5e89a61b-e8b6-4a03-b387-8b9a9e9c2b7a label: (A,5,3,1,False); child_unique_id: d6fd2a99-ec50-4db7-93fb-d3792ffe6602 child_label: (A,4,2); child_unique_id: 48f81693-7562-46e9-8a2b-eb6698e7970e child_label: (B,4,2); child_unique_id: 31c5b7e7-8655-444f-bd89-05bee23019bb child_label: (D,4,3);
+unique_id: 8499dfd4-5f47-4fc2-b33f-4cbc560376dc label: (B,5,3,1,False); child_unique_id: 48f81693-7562-46e9-8a2b-eb6698e7970e child_label: (B,4,2);
+unique_id: 9d803852-a045-4792-a812-bd28b9b917ef label: (D,5,4,1,False); child_unique_id: 31c5b7e7-8655-444f-bd89-05bee23019bb child_label: (D,4,3);
+unique_id: 5747482b-f366-4b51-afc2-34a023a11dc1 label: (A,6,4,1,True); child_unique_id: 5e89a61b-e8b6-4a03-b387-8b9a9e9c2b7a child_label: (A,5,3);
+unique_id: 7c21f3f6-666d-4d00-b0c0-58a03be25790 label: (B,6,4,1,True); child_unique_id: 8499dfd4-5f47-4fc2-b33f-4cbc560376dc child_label: (B,5,3);
+unique_id: 403c691e-36b2-4efc-aa11-69c06e683a67 label: (C,6,2,1,True); child_unique_id: c10fb6c1-94db-44c6-bb31-bbc7c17db645 child_label: (C,2,1);
+unique_id: b5f256d0-70e9-4e20-acab-0941e3436175 label: (D,6,5,1,True); child_unique_id: 9d803852-a045-4792-a812-bd28b9b917ef child_label: (D,5,4); child_unique_id: 5e89a61b-e8b6-4a03-b387-8b9a9e9c2b7a child_label: (A,5,3);
+unique_id: 3e7de075-cb4a-4219-b3cf-91655d6c67d3 label: (E,6,2,1,True); child_unique_id: 353acb78-99f2-4051-95c1-a6285823e2ad child_label: (E,2,1);

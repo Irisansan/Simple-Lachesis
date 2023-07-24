@@ -1,0 +1,18 @@
+unique_id: 812ad46b-f550-4132-966a-5c535adf8260 label: (A,1,1,1,False);
+unique_id: cbe62e8a-ff67-4f79-af76-3a53cddbf135 label: (B,1,1,1,False);
+unique_id: 83c06e7b-39ba-4afc-b25e-df8c8fd2ccb0 label: (C,1,1,1,False);
+unique_id: 1f600c29-1ace-4130-81ab-e4f5f30ed79f label: (D,1,1,1,False);
+unique_id: 01d30c84-a56f-49db-978c-b7338474855e label: (F,1,1,1,False);
+unique_id: f59134d6-b55c-4d16-96d6-290efcd769e5 label: (B,2,2,1,False); child_unique_id: cbe62e8a-ff67-4f79-af76-3a53cddbf135 child_label: (B,1,1);
+unique_id: 96cfa194-7ec3-4dec-81ab-ea55e7a646e2 label: (C,2,2,1,False); child_unique_id: 83c06e7b-39ba-4afc-b25e-df8c8fd2ccb0 child_label: (C,1,1); child_unique_id: 1f600c29-1ace-4130-81ab-e4f5f30ed79f child_label: (D,1,1);
+unique_id: db6564c7-3f1f-44b1-8a56-1125aa113742 label: (E,2,1,1,True);
+unique_id: 4bd56aaa-ab8e-43ba-bc2b-2dd7f3810f51 label: (F,2,2,1,False); child_unique_id: 01d30c84-a56f-49db-978c-b7338474855e child_label: (F,1,1);
+unique_id: 201fb19f-e0d0-47ae-9f2d-0b3eac01455e label: (B,3,3,1,False); child_unique_id: f59134d6-b55c-4d16-96d6-290efcd769e5 child_label: (B,2,2);
+unique_id: d896ba0a-8bc7-4573-a4d7-814400d802fc label: (C,3,3,1,False); child_unique_id: 96cfa194-7ec3-4dec-81ab-ea55e7a646e2 child_label: (C,2,2);
+unique_id: 31e42c00-50cf-45ab-bba8-1bacdd171c99 label: (A,4,2,1,False); child_unique_id: 812ad46b-f550-4132-966a-5c535adf8260 child_label: (A,1,1);
+unique_id: 0b205324-5243-45cd-8f0d-d884c9d45956 label: (F,4,3,1,False); child_unique_id: 4bd56aaa-ab8e-43ba-bc2b-2dd7f3810f51 child_label: (F,2,2);
+unique_id: 0e323612-97e0-41e7-a910-5e08599fa529 label: (A,5,3,1,True); child_unique_id: 31e42c00-50cf-45ab-bba8-1bacdd171c99 child_label: (A,4,2);
+unique_id: 3038e69e-a1ca-4144-8fcc-10845ceea297 label: (B,5,4,1,True); child_unique_id: 201fb19f-e0d0-47ae-9f2d-0b3eac01455e child_label: (B,3,3);
+unique_id: 3956d492-58e6-4cc2-9c0a-81980ffeb5bc label: (C,5,4,1,True); child_unique_id: d896ba0a-8bc7-4573-a4d7-814400d802fc child_label: (C,3,3); child_unique_id: 31e42c00-50cf-45ab-bba8-1bacdd171c99 child_label: (A,4,2);
+unique_id: f35452b7-e231-460b-886a-268c04255284 label: (D,5,2,1,True); child_unique_id: 1f600c29-1ace-4130-81ab-e4f5f30ed79f child_label: (D,1,1); child_unique_id: 31e42c00-50cf-45ab-bba8-1bacdd171c99 child_label: (A,4,2);
+unique_id: 3717c326-b355-4a37-96e4-3eeb5c18c46c label: (F,5,4,1,True); child_unique_id: 0b205324-5243-45cd-8f0d-d884c9d45956 child_label: (F,4,3);

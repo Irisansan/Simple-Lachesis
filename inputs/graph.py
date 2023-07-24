@@ -211,12 +211,14 @@ def createGraph(
                     i + 1,
                     cheating_parents + 1,
                     weights[deepest_cheater[1]],  # inherit weight from deepest cheater
+                    True
+                    if i == stop_times[deepest_cheater[1]]
+                    else False,  # the missing part
                 )
                 cheating_parents += 1
                 color_map[(i, j)] = color_map[(deepest_cheater)]
 
     # Plot the figure
-
     figsize = [20, 10]
     # Scale the figure size proportionally to the number of levels and nodes
     if num_levels >= 15:

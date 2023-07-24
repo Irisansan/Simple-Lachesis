@@ -1,0 +1,10 @@
+A: I, J, C, E
+C: A, J, D, G
+E: A, H
+I: A, F
+J: A, C
+B: G
+G: B, C, H
+D: C, F, H
+F: I, D, H
+H: D, E, F, G

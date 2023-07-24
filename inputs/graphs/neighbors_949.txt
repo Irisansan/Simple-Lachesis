@@ -1,0 +1,9 @@
+A: B, C, D, G, H, I
+B: A, C, E, F, G
+C: A, B, D, E, F, G, H, I
+D: A, C, F, G, H, I
+G: A, B, C, D, E, F, H, I
+H: A, C, D, E, F, G, I
+I: A, C, D, E, G, H
+E: B, C, F, G, H, I
+F: B, C, D, E, G, H
